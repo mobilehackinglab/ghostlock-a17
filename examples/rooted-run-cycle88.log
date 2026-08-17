@@ -1,0 +1,60 @@
+[*] wq-umh: begin
+[+] wq-umh: cpu_pwq via pwqs list walk: ffffff80c002e800
+[*] wq-umh: syswq=ffffff80c000d800 pco=ffffff97998d1000 (cpu_pwq DISCOVERY pass, cursor=58)
+[+] wq-umh: queued on system_wq BOUND pool (pwq=ffffff80c002e800 pool=ffffff80fb39fd40)
+[*] wq-umh: queued — waiting for wake
+[*] wq-umh: triggering via ptmx storm
+[+] rwforge physrw installed a0=71 rd=75
+[+] rwforge channel up
+[*] wq-umh: begin
+[+] wq-umh: cpu_pwq via pwqs list walk: ffffff80c002c000
+[*] wq-umh: syswq=ffffff80c000ea00 pco=ffffff94858d1000 (cpu_pwq DISCOVERY pass, cursor=64)
+[+] wq-umh: queued on system_wq BOUND pool (pwq=ffffff80c002c000 pool=ffffff80fb39fd40)
+[*] wq-umh: queued — verifying link
+[+] wq-umh: link verified
+[-] wq-umh: flags repair failed/skipped
+[*] wq-umh: triggering via ptmx storm
+[+] rwforge physrw installed a0=109 rd=106
+[+] rwforge channel up
+[*] wq-umh: begin
+[+] wq-umh: cpu_pwq via pwqs list walk: ffffff80c002f600
+[*] wq-umh: syswq=ffffff80c000f600 pco=ffffff931a0d1000 (cpu_pwq DISCOVERY pass, cursor=2)
+[+] wq-umh: queued on system_wq BOUND pool (pwq=ffffff80c002f600 pool=ffffff80fb39fd40)
+[*] wq-umh: queued — verifying link
+[+] wq-umh: link verified
+[-] wq-umh: flags repair failed/skipped
+[*] wq-umh: triggering via ptmx storm
+[+] rwforge physrw installed a0=16 rd=15
+[+] rwforge channel up
+[*] wq-umh: begin
+[+] wq-umh: cpu_pwq via pwqs list walk: ffffff80c002e000
+[*] wq-umh: syswq=ffffff80c000d400 pco=ffffffa88e0d1000 (cpu_pwq DISCOVERY pass, cursor=10)
+[+] wq-umh: queued on system_wq BOUND pool (pwq=ffffff80c002e000 pool=ffffff80fb39fd40)
+[*] wq-umh: queued — verifying link
+[+] wq-umh: link verified
+[-] wq-umh: flags repair failed/skipped
+[*] wq-umh: triggering via ptmx storm
+[+] rwforge physrw installed a0=67 rd=65
+[+] rwforge channel up
+[*] wq-umh: begin
+[+] wq-umh: cpu_pwq via pwqs list walk: ffffff80c002da00
+[*] wq-umh: syswq=ffffff80c000c800 pco=ffffffac1c8d1000 (cpu_pwq DISCOVERY pass, cursor=18)
+[+] wq-umh: queued on system_wq BOUND pool (pwq=ffffff80c002da00 pool=ffffff80fb39fd40)
+[*] wq-umh: queued — verifying link
+[+] wq-umh: link verified
+[-] wq-umh: flags repair failed/skipped
+[*] wq-umh: triggering via ptmx storm
+[+] rwforge physrw installed a0=13 rd=27
+[+] rwforge channel up
+[*] wq-umh: begin
+[+] wq-umh: cpu_pwq via pwqs list walk: ffffff80c002e800
+[*] wq-umh: syswq=ffffff80c000cc00 pco=ffffffa743ed1000 (cpu_pwq DISCOVERY pass, cursor=26)
+[+] wq-umh: queued on system_wq BOUND pool (pwq=ffffff80c002e800 pool=ffffff80fb39fd40)
+[*] wq-umh: queued — verifying link
+[+] wq-umh: link verified
+[-] wq-umh: flags repair failed/skipped
+[*] wq-umh: triggering via ptmx storm
+[+] rwforge physrw installed a0=35 rd=26
+[+] rwforge channel up
+[*] wq-umh: begin
+[+] wq-umh: cpu_pwq via pwqs list walk: ffffff80c002de00

@@ -1,0 +1,7 @@
+cmdline.txt
+dmesg.txt
+id.txt
+iomem.txt
+kallsyms.txt
+last_kmsg.txt
+pstore_ls.txt

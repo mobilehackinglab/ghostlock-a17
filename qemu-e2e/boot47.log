@@ -1,0 +1,674 @@
+-rw-r--r--  1 user  staff  16361864 Aug 17 02:03 initramfs.cpio.gz
+[    0.000000][    T0] Booting Linux on physical CPU 0x0000000000 [0x610f0000]
+[    0.000000][    T0] Linux version 6.12.23-android16-5-abA175FXXS3BZA5-4k (kleaf@build-host) (Android (12833971, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Thu Jan 15 02:57:19 UTC 2026
+[    0.000000][    T0] KASLR disabled on command line
+[    0.000000][    T0] random: crng init done
+[    0.000000][    T0] Machine model: linux,dummy-virt
+[    0.000000][    T0] KVM is not available. Ignoring kvm-arm.mode
+[    0.000000][    T0] earlycon: pl11 at MMIO 0x0000000009000000 (options '')
+[    0.000000][    T0] printk: legacy bootconsole [pl11] enabled
+[    0.000000][    T0] efi: UEFI not found.
+[    0.000000][    T0] robuffer_base: 0, robuffser_size: 0
+[    0.000000][    T0] OF: reserved mem: Reserved memory: No reserved-memory node in the DT
+[    0.000000][    T0] Zone ranges:
+[    0.000000][    T0]   DMA32    [mem 0x0000000040000000-0x00000000bfffffff]
+[    0.000000][    T0]   Normal   empty
+[    0.000000][    T0] Movable zone start for each node
+[    0.000000][    T0] Early memory node ranges
+[    0.000000][    T0]   node   0: [mem 0x0000000040000000-0x00000000bfffffff]
+[    0.000000][    T0] Initmem setup node 0 [mem 0x0000000040000000-0x00000000bfffffff]
+[    0.000000][    T0] cma: Reserved 16 MiB at 0x00000000bca00000 on node -1
+[    0.000000][    T0] psci: probing for conduit method from DT.
+[    0.000000][    T0] psci: PSCIv1.1 detected in firmware.
+[    0.000000][    T0] psci: Using standard PSCI v0.2 function IDs
+[    0.000000][    T0] psci: Trusted OS migration not required
+[    0.000000][    T0] psci: SMC Calling Convention v1.0
+[    0.000000][    T0] 'bootconfig' found on command line, but no bootconfig found
+[    0.000000][    T0] percpu: Embedded 81 pages/cpu s171544 r131072 d29160 u331776
+[    0.000000][    T0] Detected PIPT I-cache on CPU0
+[    0.000000][    T0] CPU features: detected: Address authentication (IMP DEF algorithm)
+[    0.000000][    T0] CPU features: detected: Spectre-v4
+[    0.000000][    T0] CPU features: kernel page table isolation disabled by kernel configuration
+[    0.000000][    T0] alternatives: applying boot alternatives
+[    0.000000][    T0] Kernel command line: console=ttynull stack_depot_disable=on cgroup_disable=pressure kasan.stacktrace=off kvm-arm.mode=protected bootconfig console=ttyAMA0 earlycon panic=-1 loglevel=7 nokaslr
+[    0.000000][    T0] cgroup: Disabling pressure control group feature
+[    0.000000][    T0] Dentry cache hash table entries: 262144 (order: 9, 2097152 bytes, linear)
+[    0.000000][    T0] Inode-cache hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+[    0.000000][    T0] Built 1 zonelists, mobility grouping on.  Total pages: 524288
+[    0.000000][    T0] mem auto-init: stack:all(zero), heap alloc:on, heap free:off
+[    0.000000][    T0] stackdepot: disabled
+[    0.000000][    T0] software IO TLB: SWIOTLB bounce buffer size adjusted to 2MB
+[    0.000000][    T0] software IO TLB: area num 4.
+[    0.000000][    T0] software IO TLB: mapped [mem 0x00000000bc500000-0x00000000bc700000] (2MB)
+[    0.000000][    T0] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000][    T0] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000][    T0] rcu: 	RCU event tracing is enabled.
+[    0.000000][    T0] rcu: 	RCU restricting CPUs from NR_CPUS=32 to nr_cpu_ids=4.
+[    0.000000][    T0] rcu: 	RCU priority boosting: priority 1 delay 500 ms.
+[    0.000000][    T0] 	Trampoline variant of Tasks RCU enabled.
+[    0.000000][    T0] 	Tracing variant of Tasks RCU enabled.
+[    0.000000][    T0] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.000000][    T0] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.000000][    T0] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.000000][    T0] RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.000000][    T0] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000][    T0] GICv3: 988 SPIs implemented
+[    0.000000][    T0] GICv3: 0 Extended SPIs implemented
+[    0.000000][    T0] Root IRQ handler: gic_handle_irq
+[    0.000000][    T0] GICv3: GICv3 features: 16 PPIs, RSS
+[    0.000000][    T0] GICv3: GICD_CTRL.DS=1, SCR_EL3.FIQ=0
+[    0.000000][    T0] GICv3: CPU0: found redistributor 0 region 0:0x00000000080a0000
+[    0.000000][    T0] GICv2m: range[mem 0x08020000-0x08020fff], SPI[80:143]
+[    0.000000][    T0] rcu: 	Offload RCU callbacks from CPUs: 0-3.
+[    0.000000][    T0] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000][    T0] arch_timer: cp15 timer(s) running at 24.00MHz (virt).
+[    0.000000][    T0] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x588fe9dc0, max_idle_ns: 440795202592 ns
+[    0.000000][    T0] sched_clock: 56 bits at 24MHz, resolution 41ns, wraps every 4398046511097ns
+[    0.000526][    T0] kfence: initialized - using 524288 bytes for 63 objects at 0x(____ptrval____)-0x(____ptrval____)
+[    0.001137][    T0] Calibrating delay loop (skipped), value calculated using timer frequency.. 48.00 BogoMIPS (lpj=96000)
+[    0.001762][    T0] pid_max: default: 32768 minimum: 301
+[    0.002059][    T0] LSM: initializing lsm=capability,selinux,bpf
+[    0.002408][    T0] SELinux:  Initializing.
+[    0.002846][    T0] LSM support for eBPF active
+[    0.003145][    T0] Mount-cache hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.003588][    T0] Mountpoint-cache hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.004341][    T1] cacheinfo: Unable to detect cache hierarchy for CPU 0
+[    0.004856][    T1] rcu: Hierarchical SRCU implementation.
+[    0.005162][    T1] rcu: 	Max phase no-delay instances is 1000.
+[    0.005523][    T1] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.006085][    T1] dyndbg: Ignore empty _ddebug table in a CONFIG_DYNAMIC_DEBUG_CORE build
+[    0.006549][    T1] EFI services will not be available.
+[    0.006873][    T1] smp: Bringing up secondary CPUs ...
+[    0.007337][    T0] Detected PIPT I-cache on CPU1
+[    0.007355][    T0] GICv3: CPU1: found redistributor 1 region 0:0x00000000080c0000
+[    0.007402][    T0] CPU1: Booted secondary processor 0x0000000001 [0x610f0000]
+[    0.007616][    T0] Detected PIPT I-cache on CPU2
+[    0.007632][    T0] GICv3: CPU2: found redistributor 2 region 0:0x00000000080e0000
+[    0.007673][    T0] CPU2: Booted secondary processor 0x0000000002 [0x610f0000]
+[    0.007874][    T0] Detected PIPT I-cache on CPU3
+[    0.007894][    T0] GICv3: CPU3: found redistributor 3 region 0:0x0000000008100000
+[    0.007939][    T0] CPU3: Booted secondary processor 0x0000000003 [0x610f0000]
+[    0.007986][    T1] smp: Brought up 1 node, 4 CPUs
+[    0.011357][    T1] SMP: Total of 4 processors activated.
+[    0.011666][    T1] CPU: All CPU(s) started at EL1
+[    0.011931][    T1] CPU features: detected: Branch Target Identification
+[    0.012306][    T1] CPU features: detected: ARMv8.4 Translation Table Level
+[    0.012705][    T1] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    0.013226][    T1] CPU features: detected: Common not Private translations
+[    0.013609][    T1] CPU features: detected: CRC32 instructions
+[    0.013932][    T1] CPU features: detected: Data independent timing control (DIT)
+[    0.014347][    T1] CPU features: detected: E0PD
+[    0.014635][    T1] CPU features: detected: Enhanced Privileged Access Never
+[    0.015020][    T1] CPU features: detected: Generic authentication (IMP DEF algorithm)
+[    0.015476][    T1] CPU features: detected: RCpc load-acquire (LDAPR)
+[    0.015812][    T1] CPU features: detected: LSE atomic instructions
+[    0.016128][    T1] CPU features: detected: Privileged Access Never
+[    0.016475][    T1] CPU features: detected: RAS Extension Support
+[    0.016803][    T1] CPU features: detected: Speculation barrier (SB)
+[    0.017145][    T1] CPU features: detected: TLB range maintenance instructions
+[    0.017584][    T1] alternatives: applying system-wide alternatives
+[    0.019206][    T1] Memory: 1972872K/2097152K available (18496K kernel code, 2290K rwdata, 14648K rodata, 4480K init, 2410K bss, 103540K reserved, 16384K cma-reserved)
+[    0.021959][    T1] setend instruction emulation is not supported on this system
+[    0.022391][    T1] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.022922][    T1] futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.023334][    T1] 22128 pages in range for non-PLT usage
+[    0.023334][    T1] 513648 pages in range for PLT usage
+[    0.023650][    T1] pinctrl core: initialized pinctrl subsystem
+[    0.024934][    T1] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.025592][    T1] DMA: preallocated 256 KiB GFP_KERNEL pool for atomic allocations
+[    0.026042][    T1] DMA: preallocated 256 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.026529][    T1] audit: initializing netlink subsys (disabled)
+[    0.026939][   T50] audit: type=2000 audit(0.024:1): state=initialized audit_enabled=0 res=1
+[    0.026987][    T1] thermal_sys: Registered thermal governor 'bang_bang'
+[    0.027415][    T1] thermal_sys: Registered thermal governor 'step_wise'
+[    0.027803][    T1] thermal_sys: Registered thermal governor 'user_space'
+[    0.028171][    T1] thermal_sys: Registered thermal governor 'power_allocator'
+[    0.028570][    T1] cpuidle: using governor menu
+[    0.029242][    T1] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    0.029724][    T1] ASID allocator initialised with 256 entries
+[    0.030088][    T1] Serial: AMBA PL011 UART driver
+[    0.030813][    T1] 9000000.pl011: ttyAMA0 at MMIO 0x9000000 (irq = 13, base_baud = 0) is a PL011 rev1
+[    0.031324][    T1] printk: legacy console [ttyAMA0] enabled
+[    0.031324][    T1] printk: legacy console [ttyAMA0] enabled
+[    0.031863][    T1] printk: legacy bootconsole [pl11] disabled
+[    0.031863][    T1] printk: legacy bootconsole [pl11] disabled
+[    0.035781][    T1] iommu: Default domain type: Translated
+[    0.036003][    T1] iommu: DMA domain TLB invalidation policy: strict mode
+[    0.036477][    T1] SCSI subsystem initialized
+[    0.036712][    T1] usbcore: registered new interface driver usbfs
+[    0.037121][    T1] usbcore: registered new interface driver hub
+[    0.037414][    T1] usbcore: registered new device driver usb
+[    0.037679][    T1] mc: Linux media interface: v0.10
+[    0.037927][    T1] videodev: Linux video capture interface: v2.00
+[    0.038199][    T1] EDAC MC: Ver: 3.0.0
+[    0.038453][    T1] scmi_core: SCMI protocol bus registered
+[    0.038781][    T1] Advanced Linux Sound Architecture Driver Initialized.
+[    0.039393][    T1] clocksource: Switched to clocksource arch_sys_counter
+[    0.039824][    T1] VFS: Disk quotas dquot_6.6.0
+[    0.040086][    T1] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    0.040591][    T1] NET: Registered PF_INET protocol family
+[    0.040868][    T1] IP idents hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.049439][    T1] tcp_listen_portaddr_hash hash table entries: 1024 (order: 2, 16384 bytes, linear)
+[    0.049902][    T1] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.050255][    T1] TCP established hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.050616][    T1] TCP bind hash table entries: 16384 (order: 7, 524288 bytes, linear)
+[    0.050956][    T1] TCP: Hash tables configured (established 16384 bind 16384)
+[    0.051262][    T1] UDP hash table entries: 1024 (order: 3, 32768 bytes, linear)
+[    0.051584][    T1] UDP-Lite hash table entries: 1024 (order: 3, 32768 bytes, linear)
+[    0.051940][    T1] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.052210][    T1] NET: Registered PF_XDP protocol family
+[    0.052448][    T1] PCI: CLS 0 bytes, default 64
+[    0.052692][   T12] Trying to unpack rootfs image as initramfs...
+[    0.055431][    T1] kvm [1]: HYP mode not available
+[    0.068903][    T1] Initialise system trusted keyrings
+[    0.069239][    T1] workingset: timestamp_bits=46 max_order=19 bucket_order=0
+[    0.069876][    T1] ntfs3: Read-only LZX/Xpress compression included
+[    0.070164][    T1] fuse: init (API version 7.41)
+[    0.071081][    T1] [DEFEX] LSM started
+[    0.071257][    T1] [DEFEX] ADB LP Enabled
+[    0.071511][    T1] [DSMS-KERNEL] Started.
+[    0.075726][    T1] Key type asymmetric registered
+[    0.076116][    T1] Asymmetric key parser 'x509' registered
+[    0.076375][    T1] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 241)
+[    0.076726][    T1] io scheduler mq-deadline registered
+[    0.076952][    T1] io scheduler kyber registered
+[    0.077156][    T1] io scheduler bfq registered
+[    0.077664][    T1] pl061_gpio 9030000.pl061: PL061 GPIO chip registered
+[    0.078013][    T1] pci-host-generic 4010000000.pcie: host bridge /pcie@10000000 ranges:
+[    0.078337][    T1] pci-host-generic 4010000000.pcie:       IO 0x003eff0000..0x003effffff -> 0x0000000000
+[    0.078712][    T1] pci-host-generic 4010000000.pcie:      MEM 0x0010000000..0x003efeffff -> 0x0010000000
+[    0.079098][    T1] pci-host-generic 4010000000.pcie:      MEM 0x8000000000..0xffffffffff -> 0x8000000000
+[    0.079530][    T1] pci-host-generic 4010000000.pcie: Memory resource size exceeds max for 32 bits
+[    0.079921][    T1] pci-host-generic 4010000000.pcie: ECAM at [mem 0x4010000000-0x401fffffff] for [bus 00-ff]
+[    0.080362][    T1] pci-host-generic 4010000000.pcie: PCI host bridge to bus 0000:00
+[    0.080695][    T1] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    0.080963][    T1] pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+[    0.081288][    T1] pci_bus 0000:00: root bus resource [mem 0x10000000-0x3efeffff]
+[    0.081618][    T1] pci_bus 0000:00: root bus resource [mem 0x8000000000-0xffffffffff]
+[    0.082015][    T1] pci 0000:00:00.0: [1b36:0008] type 00 class 0x060000 conventional PCI endpoint
+[    0.082567][    T1] pci 0000:00:01.0: [1af4:1000] type 00 class 0x020000 conventional PCI endpoint
+[    0.082994][    T1] pci 0000:00:01.0: BAR 0 [io  0x0000-0x001f]
+[    0.083263][    T1] pci 0000:00:01.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.083683][    T1] pci 0000:00:01.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.084066][    T1] pci 0000:00:01.0: ROM [mem 0x00000000-0x0003ffff pref]
+[    0.084551][    T1] pci 0000:00:01.0: ROM [mem 0x10000000-0x1003ffff pref]: assigned
+[    0.084876][    T1] pci 0000:00:01.0: BAR 4 [mem 0x8000000000-0x8000003fff 64bit pref]: assigned
+[    0.085267][    T1] pci 0000:00:01.0: BAR 1 [mem 0x10040000-0x10040fff]: assigned
+[    0.085600][    T1] pci 0000:00:01.0: BAR 0 [io  0x1000-0x101f]: assigned
+[    0.085921][    T1] pci_bus 0000:00: resource 4 [io  0x0000-0xffff]
+[    0.086169][    T1] pci_bus 0000:00: resource 5 [mem 0x10000000-0x3efeffff]
+[    0.086443][    T1] pci_bus 0000:00: resource 6 [mem 0x8000000000-0xffffffffff]
+[    0.086948][    T1] printk: legacy console [ttynull0] enabled
+[    0.088068][    T1] brd: module loaded
+[    0.089071][    T1] loop: module loaded
+[    0.089522][    T1] wireguard: WireGuard 1.0.0 loaded. See www.wireguard.com for information.
+[    0.089899][    T1] wireguard: Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+[    0.090443][    T1] tun: Universal TUN/TAP device driver, 1.6
+[    0.090764][    T1] VFIO - User Level meta-driver version: 0.3
+[    0.091106][    T1] usbcore: registered new interface driver uas
+[    0.091374][    T1] usbcore: registered new interface driver usb-storage
+[    0.091709][    T1] usbcore: registered new interface driver xpad
+[    0.092047][    T1] rtc-pl031 9010000.pl031: registered as rtc0
+[    0.092334][    T1] rtc-pl031 9010000.pl031: setting system clock to 2026-08-17T00:03:30 UTC (1786925010)
+[    0.092779][    T1] gspca_main: v2.14.0 registered
+[    0.092996][    T1] usbcore: registered new interface driver uvcvideo
+[    0.093310][    T1] device-mapper: uevent: version 1.0.3
+[    0.093553][    T1] device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@lists.linux.dev
+[    0.094035][    T1] alta_bigdata : create /proc/alta_bigdata
+[    0.094071][    T1] sdhci: Secure Digital Host Controller Interface driver
+[    0.094626][    T1] sdhci: Copyright(c) Pierre Ossman
+[    0.094843][    T1] sdhci-pltfm: SDHCI platform and OF driver helper
+[    0.095160][    T1] hid: raw HID events driver (C) Jiri Kosina
+[    0.095498][    T1] usbcore: registered new interface driver usbhid
+[    0.095761][    T1] usbhid: USB HID core driver
+[    0.095957][    T1] ashmem_rust: Using Rust implementation.
+[    0.096003][    T1] nf_register_hooks(freecess hooks) success
+[    0.096650][    T1] hw perfevents: enabled with armv8_pmuv3 PMU driver, 1 (0,80000000) counters available
+[    0.097064][   T62] watchdog: NMI not fully supported
+[    0.097274][   T62] watchdog: Hard watchdog permanently disabled
+[    0.097570][    T1] usbcore: registered new interface driver snd-usb-audio
+[    0.097894][    T1] GACT probability NOT on
+[    0.098077][    T1] Mirror/redirect action on
+[    0.098266][    T1] netem: version 1.3
+[    0.098429][    T1] u32 classifier
+[    0.098577][    T1]     input device check on
+[    0.098764][    T1]     Actions configured
+[    0.099113][    T1] xt_time: kernel timezone is -0000
+[    0.099351][    T1] ipip: IPv4 and MPLS over IPv4 tunneling driver
+[    0.099661][    T1] gre: GRE over IPv4 demultiplexor driver
+[    0.099902][    T1] ip_gre: GRE over IPv4 tunneling driver
+[    0.100209][    T1] IPv4 over IPsec tunneling driver
+[    0.100454][    T1] Initializing XFRM netlink socket
+[    0.100671][    T1] IPsec XFRM device driver
+[    0.100863][    T1] NET: Registered PF_INET6 protocol family
+[    0.101359][    T1] Segment Routing with IPv6
+[    0.101558][    T1] In-situ OAM (IOAM) with IPv6
+[    0.101770][    T1] mip6: Mobile IPv6
+[    0.101977][    T1] sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+[    0.102320][    T1] ip6_gre: GRE over IPv6 tunneling driver
+[    0.102590][    T1] NET: Registered PF_PACKET protocol family
+[    0.102840][    T1] NET: Registered PF_KEY protocol family
+[    0.103128][    T1] NET: Registered PF_VSOCK protocol family
+[    0.103370][    T1] ncm: Network Context Metadata Module: initialized
+[    0.104292][    T1] registered taskstats version 1
+[    0.104538][    T1] Loading compiled-in X.509 certificates
+[    0.105089][    T1] Loaded X.509 cert 'Build time autogenerated kernel key: 0764c7ed0966421a7b4bdbbf11062d1d2f1d750d'
+[    0.106475][    T1] page_owner is disabled
+[    0.106670][    T1] Key type .fscrypt registered
+[    0.106873][    T1] Key type fscrypt-provisioning registered
+[    0.107206][    T1] Loaded X.509 cert 'CRONUS-07: cronus-07secadmin
+ signing key: fe7a8343698a95507edd96ed880c59aa623430a9': built-in
+[    0.107795][    T1] PROCA: Config driver is inited.
+[    0.108015][    T1] PROCA: Proca keyring was initialized
+[    0.108289][    T1] Loaded X.509 cert 'CRONUS-07: cronus-07secadmin
+ signing key: fe7a8343698a95507edd96ed880c59aa623430a9': built-in
+[    0.108795][    T1] PROCA: Proca x509 certificate was initialized
+[    0.109038][    T1] PROCA: Proca certificate db was initialized
+[    0.109317][    T1] PROCA: LSM module was initialized
+[    0.109550][    T1] defex_rules_proc: [DEFEX] Failed to open rules file (-2)
+[    0.109997][    T1] input: gpio-keys as /devices/platform/gpio-keys/input/input0
+[    0.110488][    T1] uh_log : create /proc/uh_log
+[    0.117654][    T1] clk: Disabling unused clocks
+[    0.117866][    T1] PM: genpd: Disabling unused power domains
+[    0.118111][    T1] ALSA device list:
+[    0.118269][    T1]   No soundcards found.
+[    0.184626][   T12] Freeing initrd memory: 15976K
+[    0.185469][    T1] Freeing unused kernel memory: 4480K
+[    0.185728][    T1] Run /init as init process
+[init] e2e guest boot
+[    0.186379][    T1] request_module fs-devtmpfs succeeded, but still no fs?
+[init] devtmpfs mount failed (No such device) — mknod fallback
+[init] /dev/ashmem -> 10:124
+Linux version 6.12.23-android16-5-abA175FXXS3BZA5-4k (kleaf@build-host) (Android (12833971, +pgo, +bolt, +lto, +mlgo, based on r536225) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project b3a530ec6537146650e42be89f1089e9a3588460), LLD 19.0.1) #1 SMP PREEMPT Thu Jan 15 02:57:19 UTC 2026
+0a4a16a1-8f1a-4d08-aae0-9b942c0bc4ec
+[init] uname: uptime=1 loads=0
+Linux
+[init] osrelease=6.12.23-android16-5-abA175FXXS3BZA5-4k
+[init] running: GL_WQ_UMH=1 RWF_DEBUG=1 /data/local/tmp/a/g4 --rwforge
+[33m[*] [0mkernel: 6.12.23-android16-5-abA175FXXS3BZA5-4k
+[32m[+] [0moffsets matched: 6.12.23-android16-5-abA175FXXS3BZA5-4k
+[33m[*] [0minit_cred image=ffffffc082512b08 alias=ffffff8002512b08
+[32m[+] [0mstartup context pid=85 uid=0 euid=0 gid=0 egid=0 attr=kernel enforce=unreadable
+[32m[+] [0mstartup limits pid=85 NoNewPrivs=0 Seccomp=0 Seccomp_filters=0
+[32m[+] [0mbuild config pid=85 label=ghostlock_a17 slide=pselect main=pselect
+[32m[+] [0mp0 profile pid=85 phys_offset=0000000040000000 kernel_phys_load=0000000040000000 delta=0000000000000000 slide_logger=ffffff80024f21a0 bootid_data=ffffff80028204f0 init_task=ffffff80024fcf40 root_tg=ffffff800272ed80 sysctl_bootid=ffffff80028204f0
+[33m[*] [0mp0 kernel_phys_load=0000000040200000 delta=0000000000200000
+[32m[+] [0mSELinux off
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff800281b920 cval=ffffff80026fcf70 pc=ffffff800281b918 right=ffffff80026fcf70 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff801b350000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff801b350000 fake_lock=ffffff801b350000 fake_w0=ffffff801b350300 fake_task=ffffff801b350400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff801b350400 ex3=ffffff801b350000
+[33m[*] [0mpselect pre-select +0ms
+[    1.691798][    T0] ------------[ cut here ]------------
+[    1.692288][    T0] WARNING: CPU: 0 PID: 0 at kernel/sched/core.c:7865 schedule_idle+0x3c/0x48
+[    1.692915][    T0] Modules linked in:
+[    1.693191][    T0] CPU: 0 UID: 0 PID: 0 Comm: swapper/0 Not tainted 6.12.23-android16-5-abA175FXXS3BZA5-4k #1 c6077d974cbca63cf225e74fc494b6eb46ef0256
+[    1.694161][    T0] Hardware name: linux,dummy-virt (DT)
+[    1.694545][    T0] pstate: 61400005 (nZCv daif +PAN -UAO -TCO +DIT -SSBS BTYPE=--)
+[    1.695071][    T0] pc : schedule_idle+0x3c/0x48
+[    1.695371][    T0] lr : do_idle+0x214/0x25c
+[    1.695662][    T0] sp : ffffffc0824e3db0
+[    1.695925][    T0] x29: ffffffc0824e3db0 x28: ffffffc0824c91b0 x27: ffffffc0824eb000
+[    1.696432][    T0] x26: ffffffc0824eaff0 x25: 0000000000000001 x24: 0000000000000000
+[    1.696937][    T0] x23: ffffffc0824eb000 x22: ffffffc0824fcf40 x21: 0000000049000000
+[    1.697454][    T0] x20: 0000000000000000 x19: ffffffc0824fcf40 x18: ffffffc0824fbf40
+[    1.697969][    T0] x17: 000000003365b284 x16: 000000003365b284 x15: 0000000000000010
+[    1.698475][    T0] x14: 0000000000000010 x13: ffffffc086d0b790 x12: 0000000000000000
+[    1.698971][    T0] x11: 0000000000000030 x10: 000000004b35bf76 x9 : ffffffc0824d0a00
+[    1.699441][    T0] x8 : 000000000281b918 x7 : 0000000000000000 x6 : ffffffc084243db8
+[    1.699912][    T0] x5 : ffffffc084243db8 x4 : 0000000000000001 x3 : 000000000000000a
+[    1.700384][    T0] x2 : 0000000000000002 x1 : 000000000079f437 x0 : ffffffc0824fcf40
+[    1.700927][    T0] Call trace:
+[    1.701139][    T0]  schedule_idle+0x3c/0x48
+[    1.701466][    T0]  do_idle+0x214/0x25c
+[    1.701734][    T0]  cpu_startup_entry+0x34/0x3c
+[    1.702033][    T0]  rest_init+0xdc/0xe0
+[    1.702307][    T0]  start_kernel+0x374/0x414
+[    1.702902][    T0]  __primary_switched+0x88/0x94
+[    1.703178][    T0] ---[ end trace 0000000000000000 ]---
+[33m[*] [0mpselect post-select +201ms ret=4
+[33m[*] [0mpselect returned attempt=1 ret=4 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=4 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0moracle window text: 61a1321a-4fed-4d6a-b026-1403be2cb353
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff800281b920 cval=ffffff8002a204f0 pc=ffffff800281b918 right=ffffff8002a204f0 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff8017288000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff8017288000 fake_lock=ffffff8017288000 fake_w0=ffffff8017288300 fake_task=ffffff8017288400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff8017288400 ex3=ffffff8017288000
+[33m[*] [0mpselect pre-select +1ms
+[33m[*] [0mpselect post-select +202ms ret=4
+[33m[*] [0mpselect returned attempt=1 ret=4 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=4 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0mbootid oracle: restore verified
+[33m[*] [0moracle slide: stackv=53b32cbe031426b0 slide=53b32cfd80c626b0
+[33m[*] [0mperf slide: page#0=ffffffc080022000 votes=1532 residue=22000
+[33m[*] [0mperf slide: page#1=ffffffc080735000 votes=444 residue=135000
+[33m[*] [0mperf slide: page#2=ffffffc080037000 votes=108 residue=37000
+[31m[-] [0mfuse-bringup: perf slide failed (att 1)
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff800281b920 cval=ffffff80026fcf70 pc=ffffff800281b918 right=ffffff80026fcf70 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff8010880000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff8010880000 fake_lock=ffffff8010880000 fake_w0=ffffff8010880300 fake_task=ffffff8010880400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff8010880400 ex3=ffffff8010880000
+[33m[*] [0mpselect pre-select +0ms
+[33m[*] [0mpselect post-select +201ms ret=4
+[33m[*] [0mpselect returned attempt=1 ret=4 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=4 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0moracle window text: 18b98102-80ff-ffff-b026-1403be2cb353
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff800281b920 cval=ffffff8002a204f0 pc=ffffff800281b918 right=ffffff8002a204f0 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff8018258000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff8018258000 fake_lock=ffffff8018258000 fake_w0=ffffff8018258300 fake_task=ffffff8018258400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff8018258400 ex3=ffffff8018258000
+[33m[*] [0mpselect pre-select +2ms
+[33m[*] [0mpselect post-select +206ms ret=4
+[33m[*] [0mpselect returned attempt=1 ret=4 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=4 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0mbootid oracle: restore verified
+[33m[*] [0moracle slide: stackv=53b32cbe031426b0 slide=53b32cfd80c626b0
+[33m[*] [0mperf slide: page#0=ffffffc080022000 votes=1809 residue=22000
+[33m[*] [0mperf slide: page#1=ffffffc080735000 votes=479 residue=135000
+[33m[*] [0mperf slide: page#2=ffffffc080037000 votes=143 residue=37000
+[31m[-] [0mfuse-bringup: perf slide failed (att 2)
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff800281b920 cval=ffffff80026fcf70 pc=ffffff800281b918 right=ffffff80026fcf70 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff8011bc0000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff8011bc0000 fake_lock=ffffff8011bc0000 fake_w0=ffffff8011bc0300 fake_task=ffffff8011bc0400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff8011bc0400 ex3=ffffff8011bc0000
+[33m[*] [0mpselect pre-select +1ms
+[33m[*] [0mpselect post-select +202ms ret=4
+[33m[*] [0mpselect returned attempt=1 ret=4 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=4 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0moracle window text: 18b98102-80ff-ffff-b026-1403be2cb353
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff800281b920 cval=ffffff8002a204f0 pc=ffffff800281b918 right=ffffff8002a204f0 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff800adb0000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff800adb0000 fake_lock=ffffff800adb0000 fake_w0=ffffff800adb0300 fake_task=ffffff800adb0400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff800adb0400 ex3=ffffff800adb0000
+[33m[*] [0mpselect pre-select +1ms
+[33m[*] [0mpselect post-select +202ms ret=4
+[33m[*] [0mpselect returned attempt=1 ret=4 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=4 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0mbootid oracle: restore verified
+[33m[*] [0moracle slide: stackv=53b32cbe031426b0 slide=53b32cfd80c626b0
+[33m[*] [0mperf slide: page#0=ffffffc080022000 votes=1513 residue=22000
+[33m[*] [0mperf slide: page#1=ffffffc080735000 votes=399 residue=135000
+[33m[*] [0mperf slide: page#2=ffffffc0806f8000 votes=129 residue=f8000
+[31m[-] [0mfuse-bringup: perf slide failed (att 3)
+[33m[*] [0mrwf fdmove pipe0: 4096 -> 4096
+[32m[+] [0mpipebuf_page_base=ffffff8011518000
+[33m[*] [0mrwforge: no-punch prime round
+[33m[*] [0mDBG payload mode=0 cw=3 target=0000000000000000 cval=ffffff80233f8100 pc=fffffffffffffff8 right=0000000000000000 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff80233f8000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff80233f8000 fake_lock=ffffff80233f8000 fake_w0=ffffff80233f8300 fake_task=ffffff80233f8400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff80233f8400 ex3=ffffff80233f8000
+[33m[*] [0mpselect pre-select +0ms
+[33m[*] [0mpselect post-select +201ms ret=0
+[33m[*] [0mpselect returned attempt=1 ret=0 errno=0 calls=0 success=0 delay=100000
+[33m[*] [0mpselect route done calls=0 success=0 step=33 errno=0
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff8011518000 cval=ffffff80234e0100 pc=ffffff8011517ff8 right=fffffffec08d3800 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff80234e0000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff80234e0000 fake_lock=ffffff80234e0000 fake_w0=ffffff80234e0300 fake_task=ffffff80234e0400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff80234e0400 ex3=ffffff80234e0000
+[33m[*] [0mpselect pre-select +1ms
+[33m[*] [0mpselect post-select +202ms ret=2
+[33m[*] [0mpselect returned attempt=1 ret=2 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=2 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0mrwf scan map-a0 owner pipe=24 byte=00
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff8011518800 cval=ffffff8025940100 pc=ffffff80115187f8 right=fffffffec0965000 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff8025940000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff8025940000 fake_lock=ffffff8025940000 fake_w0=ffffff8025940300 fake_task=ffffff8025940400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff8025940400 ex3=ffffff8025940000
+[33m[*] [0mpselect pre-select +1ms
+[33m[*] [0mpselect post-select +202ms ret=2
+[33m[*] [0mpselect returned attempt=1 ret=2 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=2 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0mrwf scan map-rd owner pipe=15 byte=00
+[33m[*] [0mDBG payload mode=0 cw=3 target=ffffff8011518000 cval=fffffffec0454600 pc=ffffff8011517ff8 right=fffffffec0454600 left=0000000000000000 wtask=ffffffc0824fcf40
+[33m[*] [0mDBG post-payload base=ffffff8021d50000
+[33m[*] [0mprepare_kernel_page ok attempt=1
+[33m[*] [0mpselect route setup attempt=1 simple=0 shift=0 page=ffffff8021d50000 fake_lock=ffffff8021d50000 fake_w0=ffffff8021d50300 fake_task=ffffff8021d50400 in0=0000000000000000 in3=0000000000000000 out0=0000000000000001 ex0=0000000000000001 ex1=0000000000000000 ex2=ffffff8021d50400 ex3=ffffff8021d50000
+[33m[*] [0mpselect pre-select +2ms
+[33m[*] [0mpselect post-select +203ms ret=2
+[33m[*] [0mpselect returned attempt=1 ret=2 errno=0 calls=1 success=1 delay=100000
+[33m[*] [0mpselect route probing cfi attempt=1 ret=2 expected=9
+[33m[*] [0mpselect route done calls=1 success=1 step=0 errno=0
+[33m[*] [0mrwf stage: retarget round done landed=1 (spray tracked=3)
+[33m[*] [0mrwf stage: array pinned
+[33m[*] [0mrwf stage: self-test read-verify begin
+[33m[*] [0mrwf read peek=ff addr=ffffff8021d50230 slot=0
+[33m[*] [0mrwf stage: self-test read-verify ok
+[33m[*] [0mrwf stage: self-test write begin
+[33m[*] [0mrwf write peek=52 (want 52) addr=ffffff8021d50c00 slot=1
+[33m[*] [0mrwf stage: self-test write ok
+[33m[*] [0mrwf stage: self-test read begin
+[33m[*] [0mrwf read peek=52 addr=ffffff8021d50c00 slot=2
+[32m[+] [0mrwforge physrw installed a0=24 rd=15
+[32m[+] [0mrwforge channel up
+[31m[-] [0mfuse-bringup: no file candidates
+[31m[-] [0mfuse-fix: fuse stays armed
+[33m[*] [0mwq-umh: begin
+[33m[*] [0mrwf write peek=00 (want 00) addr=ffffff8021d51800 slot=3
+[33m[*] [0mrwf write peek=2f (want 2f) addr=ffffff8021d51820 slot=4
+[33m[*] [0mrwf write peek=61 (want 61) addr=ffffff8021d51840 slot=5
+[33m[*] [0mrwf write peek=00 (want 00) addr=ffffff8021d51860 slot=6
+[33m[*] [0mrwf read peek=00 addr=ffffff80026eb810 slot=7
+[33m[*] [0mrwf read peek=00 addr=ffffff8001a97238 slot=8
+[33m[*] [0mrwf read peek=88 addr=ffffff8002c0aa00 slot=9
+[33m[*] [0mrwf read peek=00 addr=ffffff8002c2a808 slot=10
+[32m[+] [0mwq-umh: cpu_pwq via pwqs list walk: ffffff8002c2a800
+[33m[*] [0mwq-umh: syswq=ffffff8002c0aa00 pco=ffffffbffd571000 (cpu_pwq DISCOVERY pass, cursor=2)
+[33m[*] [0mrwf read peek=40 addr=ffffff8002c2a800 slot=11
+[33m[*] [0mrwf read peek=68 addr=ffffff807fa3fd68 slot=12
+[33m[*] [0mrwf read peek=00 addr=ffffff8002c2a810 slot=13
+[33m[*] [0mrwf read peek=01 addr=ffffff8002c2a818 slot=14
+[33m[*] [0mrwf write peek=05 (want 05) addr=ffffff8021d51700 slot=15
+[33m[*] [0mrwf write peek=00 (want 00) addr=ffffff8021d51720 slot=16
+[33m[*] [0mrwf write peek=00 (want 00) addr=ffffff8021d51740 slot=17
+[33m[*] [0mrwf write peek=01 (want 01) addr=ffffff8002c2a81c slot=18
+[33m[*] [0mrwf write peek=01 (want 01) addr=ffffff8002c2a860 slot=19
+[33m[*] [0mrwf write peek=02 (want 02) addr=ffffff8002c2a818 slot=20
+[33m[*] [0mrwf write peek=08 (want 08) addr=ffffff807fa3fd70 slot=21
+[33m[*] [0mrwf write peek=08 (want 08) addr=ffffff807fa3fd68 slot=22
+[32m[+] [0mwq-umh: queued on system_wq BOUND pool (pwq=ffffff8002c2a800 pool=ffffff807fa3fd40)
+[33m[*] [0mwq-umh: queued — waiting for wake
+[33m[*] [0mwq-umh: triggering via ptmx storm
+[33m[*] [0mrwf read peek=00 addr=ffffff8021d51744 slot=23
+[33m[*] [0mwq-umh: wake=1 complete=1 retval=0
+[32m[+] [0mwq-umh: helper ran with init creds
+[32m[+] [0mROOTED via wq-umh (init-creds helper)
+[33m[*] [0mcapture rc=0
+[   18.202523][T27758] BUG: Bad page state in process e  pfn:426eb
+[   18.202800][T27758] page: refcount:0 mapcount:0 mapping:0000000000000000 index:0x0 pfn:0x426eb
+[   18.203200][T27758] flags: 0x4000(reserved|zone=0|kasantag=0x0)
+[   18.203459][T27758] raw: 0000000000004000 fffffffec009bac8 fffffffec009bac8 0000000000000000
+[   18.203814][T27758] raw: 0000000000000000 0000000000000000 00000000ffffffff 0000000000000000
+[   18.204169][T27758] page dumped because: PAGE_FLAGS_CHECK_AT_FREE flag(s) set
+[   18.204465][T27758] Modules linked in:
+[   18.204626][T27758] CPU: 1 UID: 0 PID: 27758 Comm: e Tainted: G        W          6.12.23-android16-5-abA175FXXS3BZA5-4k #1 c6077d974cbca63cf225e74fc494b6eb46ef0256
+[   18.204628][T27758] Tainted: [W]=WARN
+[   18.204628][T27758] Hardware name: linux,dummy-virt (DT)
+[   18.204629][T27758] Call trace:
+[   18.204629][T27758]  dump_backtrace+0xec/0x128
+[   18.204633][T27758]  show_stack+0x18/0x28
+[   18.204635][T27758]  dump_stack_lvl+0x40/0x88
+[   18.204636][T27758]  dump_stack+0x18/0x24
+[   18.204638][T27758]  bad_page+0x12c/0x134
+[   18.204643][T27758]  free_page_is_bad_report+0x68/0xc8
+[   18.204643][T27758]  free_unref_page+0x6e8/0x6f4
+[   18.204645][T27758]  __folio_put+0xa4/0xd4
+[   18.204648][T27758]  anon_pipe_buf_release+0x68/0xc4
+[   18.204651][T27758]  free_pipe_info+0x94/0xf4
+[   18.204652][T27758]  pipe_release+0xf4/0x110
+[   18.204652][T27758]  __fput+0xac/0x290
+[   18.204653][T27758]  ____fput+0x14/0x24
+[   18.204654][T27758]  task_work_run+0xc0/0xe4
+[   18.204656][T27758]  do_exit+0x264/0xa6c
+[   18.204657][T27758]  trace_android_vh_do_group_exit+0x0/0x84
+[   18.204658][T27758]  get_signal+0x768/0x870
+[   18.204659][T27758]  do_signal+0xdc/0x5e4
+[   18.204660][T27758]  do_notify_resume+0x64/0x120
+[   18.204661][T27758]  el0_interrupt+0x84/0xd4
+[   18.204663][T27758]  __el0_irq_handler_common+0x18/0x28
+[   18.204664][T27758]  el0t_64_irq_handler+0x10/0x1c
+[   18.204664][T27758]  el0t_64_irq+0x1a8/0x1ac
+[   18.204665][T27758] Disabling lock debugging due to kernel taint
+[   18.210860][T27758] BUG: Bad page state in process e  pfn:41a97
+[   18.211090][T27758] page: refcount:0 mapcount:0 mapping:0000000000000000 index:0x0 pfn:0x41a97
+[   18.211432][T27758] flags: 0x4000(reserved|zone=0|kasantag=0x0)
+[   18.211667][T27758] raw: 0000000000004000 fffffffec006a5c8 fffffffec006a5c8 0000000000000000
+[   18.211990][T27758] raw: 0000000000000000 0000000000000000 00000000ffffffff 0000000000000000
+[   18.212315][T27758] page dumped because: PAGE_FLAGS_CHECK_AT_FREE flag(s) set
+[   18.212602][T27758] Modules linked in:
+[   18.212759][T27758] CPU: 1 UID: 0 PID: 27758 Comm: e Tainted: G    B   W          6.12.23-android16-5-abA175FXXS3BZA5-4k #1 c6077d974cbca63cf225e74fc494b6eb46ef0256
+[   18.212762][T27758] Tainted: [B]=BAD_PAGE, [W]=WARN
+[   18.212762][T27758] Hardware name: linux,dummy-virt (DT)
+[   18.212763][T27758] Call trace:
+[   18.212763][T27758]  dump_backtrace+0xec/0x128
+[   18.212768][T27758]  show_stack+0x18/0x28
+[   18.212769][T27758]  dump_stack_lvl+0x40/0x88
+[   18.212771][T27758]  dump_stack+0x18/0x24
+[   18.212772][T27758]  bad_page+0x12c/0x134
+[   18.212774][T27758]  free_page_is_bad_report+0x68/0xc8
+[   18.212775][T27758]  free_unref_page+0x6e8/0x6f4
+[   18.212776][T27758]  __folio_put+0xa4/0xd4
+[   18.212778][T27758]  anon_pipe_buf_release+0x68/0xc4
+[   18.212779][T27758]  free_pipe_info+0x94/0xf4
+[   18.212779][T27758]  pipe_release+0xf4/0x110
+[   18.212785][T27758]  __fput+0xac/0x290
+[   18.212786][T27758]  ____fput+0x14/0x24
+[   18.212787][T27758]  task_work_run+0xc0/0xe4
+[   18.212789][T27758]  do_exit+0x264/0xa6c
+[   18.212790][T27758]  trace_android_vh_do_group_exit+0x0/0x84
+[   18.212791][T27758]  get_signal+0x768/0x870
+[   18.212792][T27758]  do_signal+0xdc/0x5e4
+[   18.212793][T27758]  do_notify_resume+0x64/0x120
+[   18.212794][T27758]  el0_interrupt+0x84/0xd4
+[   18.212796][T27758]  __el0_irq_handler_common+0x18/0x28
+[   18.212797][T27758]  el0t_64_irq_handler+0x10/0x1c
+[   18.212797][T27758]  el0t_64_irq+0x1a8/0x1ac
+[   18.212798][T27758] BUG: Bad page state in process e  pfn:42c0a
+[   18.218664][T27758] page: refcount:0 mapcount:0 mapping:0000000000000000 index:0x0 pfn:0x42c0a
+[   18.219029][T27758] head: order:0 mapcount:0 entire_mapcount:0 nr_pages_mapped:0 pincount:0
+[   18.219420][T27758] flags: 0x40(head|zone=0|kasantag=0x0)
+[   18.219654][T27758] page_type: f5(slab)
+[   18.219819][T27758] raw: 0000000000000040 ffffff8002c01a00 dead000000000122 0000000000000000
+[   18.220172][T27758] raw: 0000000000000000 0000000000100010 00000000f5000000 0000000000000000
+[   18.220533][T27758] head: 0000000000000040 ffffff8002c01a00 dead000000000122 0000000000000000
+[   18.220898][T27758] head: 0000000000000000 0000000000100010 00000000f5000000 0000000000000000
+[   18.221260][T27758] head: 0000000000000000 0000000000000000 ffffffffffffffff 0000000000000000
+[   18.221634][T27758] head: 0000000000000002 0000000000000000 00000000ffffffff 0000000000000000
+[   18.222001][T27758] page dumped because: nonzero mapcount
+[   18.222238][T27758] Modules linked in:
+[   18.222412][T27758] CPU: 1 UID: 0 PID: 27758 Comm: e Tainted: G    B   W          6.12.23-android16-5-abA175FXXS3BZA5-4k #1 c6077d974cbca63cf225e74fc494b6eb46ef0256
+[   18.222414][T27758] Tainted: [B]=BAD_PAGE, [W]=WARN
+[   18.222415][T27758] Hardware name: linux,dummy-virt (DT)
+[   18.222416][T27758] Call trace:
+[   18.222416][T27758]  dump_backtrace+0xec/0x128
+[   18.222421][T27758]  show_stack+0x18/0x28
+[   18.222422][T27758]  dump_stack_lvl+0x40/0x88
+[   18.222424][T27758]  dump_stack+0x18/0x24
+[   18.222425][T27758]  bad_page+0x12c/0x134
+[   18.222427][T27758]  free_page_is_bad_report+0x68/0xc8
+[   18.222427][T27758]  free_unref_page+0x6e8/0x6f4
+[   18.222429][T27758]  __folio_put+0xa4/0xd4
+[   18.222430][T27758]  anon_pipe_buf_release+0x68/0xc4
+[   18.222432][T27758]  free_pipe_info+0x94/0xf4
+[   18.222432][T27758]  pipe_release+0xf4/0x110
+[   18.222433][T27758]  __fput+0xac/0x290
+[   18.222434][T27758]  ____fput+0x14/0x24
+[   18.222435][T27758]  task_work_run+0xc0/0xe4
+[   18.222436][T27758]  do_exit+0x264/0xa6c
+[   18.222438][T27758]  trace_android_vh_do_group_exit+0x0/0x84
+[   18.222438][T27758]  get_signal+0x768/0x870
+[   18.222439][T27758]  do_signal+0xdc/0x5e4
+[   18.222440][T27758]  do_notify_resume+0x64/0x120
+[   18.222441][T27758]  el0_interrupt+0x84/0xd4
+[   18.222443][T27758]  __el0_irq_handler_common+0x18/0x28
+[   18.222444][T27758]  el0t_64_irq_handler+0x10/0x1c
+[   18.222444][T27758]  el0t_64_irq+0x1a8/0x1ac
+[   18.222447][T27758] BUG: Bad page state in process e  pfn:42c2a
+[   18.228140][T27758] page: refcount:0 mapcount:0 mapping:0000000000000000 index:0x0 pfn:0x42c2a
+[   18.228494][T27758] head: order:0 mapcount:0 entire_mapcount:0 nr_pages_mapped:0 pincount:0
+[   18.228836][T27758] flags: 0x40(head|zone=0|kasantag=0x0)
+[   18.229061][T27758] page_type: f5(slab)
+[   18.229226][T27758] raw: 0000000000000040 ffffff8002c03f00 dead000000000122 0000000000000000
+[   18.229586][T27758] raw: 0000000000000000 0000000000100010 00000000f5000000 0000000000000000
+[   18.229942][T27758] head: 0000000000000040 ffffff8002c03f00 dead000000000122 0000000000000000
+[   18.230298][T27758] head: 0000000000000000 0000000000100010 00000000f5000000 0000000000000000
+[   18.230654][T27758] head: 0000000000000000 0000000000000000 ffffffffffffffff 0000000000000000
+[   18.231009][T27758] head: 0000000000000002 0000000000000000 00000000ffffffff 0000000000000000
+[   18.231370][T27758] page dumped because: nonzero mapcount
+[   18.231610][T27758] Modules linked in:
+[   18.231777][T27758] CPU: 1 UID: 0 PID: 27758 Comm: e Tainted: G    B   W          6.12.23-android16-5-abA175FXXS3BZA5-4k #1 c6077d974cbca63cf225e74fc494b6eb46ef0256
+[   18.231778][T27758] Tainted: [B]=BAD_PAGE, [W]=WARN
+[   18.231778][T27758] Hardware name: linux,dummy-virt (DT)
+[   18.231779][T27758] Call trace:
+[   18.231779][T27758]  dump_backtrace+0xec/0x128
+[   18.231781][T27758]  show_stack+0x18/0x28
+[   18.231782][T27758]  dump_stack_lvl+0x40/0x88
+[   18.231784][T27758]  dump_stack+0x18/0x24
+[   18.231785][T27758]  bad_page+0x12c/0x134
+[   18.231786][T27758]  free_page_is_bad_report+0x68/0xc8
+[   18.231786][T27758]  free_unref_page+0x6e8/0x6f4
+[   18.231788][T27758]  __folio_put+0xa4/0xd4
+[   18.231789][T27758]  anon_pipe_buf_release+0x68/0xc4
+[   18.231790][T27758]  free_pipe_info+0x94/0xf4
+[   18.231790][T27758]  pipe_release+0xf4/0x110
+[   18.231791][T27758]  __fput+0xac/0x290
+[   18.231792][T27758]  ____fput+0x14/0x24
+[   18.231792][T27758]  task_work_run+0xc0/0xe4
+[   18.231794][T27758]  do_exit+0x264/0xa6c
+[   18.231794][T27758]  trace_android_vh_do_group_exit+0x0/0x84
+[   18.231795][T27758]  get_signal+0x768/0x870
+[   18.231796][T27758]  do_signal+0xdc/0x5e4
+[   18.231797][T27758]  do_notify_resume+0x64/0x120
+[   18.231798][T27758]  el0_interrupt+0x84/0xd4
+[   18.231799][T27758]  __el0_irq_handler_common+0x18/0x28
+[   18.231799][T27758]  el0t_64_irq_handler+0x10/0x1c
+[   18.231800][T27758]  el0t_64_irq+0x1a8/0x1ac
+[   18.231800][T27758] BUG: Bad page state in process e  pfn:bfa3f
+[   18.237958][T27758] page: refcount:0 mapcount:0 mapping:0000000000000000 index:0x0 pfn:0xbfa3f
+[   18.238313][T27758] flags: 0x4000(reserved|zone=0|kasantag=0x0)
+[   18.238567][T27758] raw: 0000000000004000 fffffffec1fe8fc8 fffffffec1fe8fc8 0000000000000000
+[   18.238957][T27758] raw: 0000000000000000 0000000000000000 00000000ffffffff 0000000000000000
+[   18.239366][T27758] page dumped because: PAGE_FLAGS_CHECK_AT_FREE flag(s) set
+[   18.239726][T27758] Modules linked in:
+[   18.239902][T27758] CPU: 1 UID: 0 PID: 27758 Comm: e Tainted: G    B   W          6.12.23-android16-5-abA175FXXS3BZA5-4k #1 c6077d974cbca63cf225e74fc494b6eb46ef0256
+[   18.239904][T27758] Tainted: [B]=BAD_PAGE, [W]=WARN
+[   18.239904][T27758] Hardware name: linux,dummy-virt (DT)
+[   18.239905][T27758] Call trace:
+[   18.239906][T27758]  dump_backtrace+0xec/0x128
+[   18.239909][T27758]  show_stack+0x18/0x28
+[   18.239911][T27758]  dump_stack_lvl+0x40/0x88
+[   18.239912][T27758]  dump_stack+0x18/0x24
+[   18.239914][T27758]  bad_page+0x12c/0x134
+[   18.239915][T27758]  free_page_is_bad_report+0x68/0xc8
+[   18.239916][T27758]  free_unref_page+0x6e8/0x6f4
+[   18.239917][T27758]  __folio_put+0xa4/0xd4
+[   18.239919][T27758]  anon_pipe_buf_release+0x68/0xc4
+[   18.239920][T27758]  free_pipe_info+0x94/0xf4
+[   18.239920][T27758]  pipe_release+0xf4/0x110
+[   18.239921][T27758]  __fput+0xac/0x290
+[   18.239926][T27758]  ____fput+0x14/0x24
+[   18.239927][T27758]  task_work_run+0xc0/0xe4
+[   18.239929][T27758]  do_exit+0x264/0xa6c
+[   18.239930][T27758]  trace_android_vh_do_group_exit+0x0/0x84
+[   18.239931][T27758]  get_signal+0x768/0x870
+[   18.239931][T27758]  do_signal+0xdc/0x5e4
+[   18.239933][T27758]  do_notify_resume+0x64/0x120
+[   18.239934][T27758]  el0_interrupt+0x84/0xd4
+[   18.239936][T27758]  __el0_irq_handler_common+0x18/0x28
+[   18.239937][T27758]  el0t_64_irq_handler+0x10/0x1c
+[   18.239937][T27758]  el0t_64_irq+0x1a8/0x1ac
+[init] exploit exited status=0x0 (exit=0 sig=-1)
+[init] marker check:
+rooted
+uid=0(root) gid=0(root) euid=0 egid=0 caps=unknown
+fake_sh ran
+18b98102-80ff-ffff-aae0-9b942c0bc4ec
+[init] E2E-DONE
+[   18.250830][    T1] reboot: Power down

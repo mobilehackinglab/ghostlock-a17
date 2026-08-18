@@ -1,4 +1,4 @@
-# GhostLock on the Samsung Galaxy A17 (SM-A175F)
+# ghostlock on the Samsung Galaxy A17 (SM-A175F)
 
 Full user-to-root exploit chain for **CVE-2026-43499** on the Samsung
 Galaxy A17 (mt6789, Mali-G57), kernel
@@ -12,17 +12,17 @@ offers.
 | **CVE** | CVE-2026-43499 ("ghostlock") |
 | **Device** | Samsung Galaxy A17 (SM-A175F, mt6789) |
 | **Kernel** | `6.12.23-android16-5-abA175FXXS3BZA5-4k` (GKI 6.12) |
-| **Result** | usermode helper as `uid=0(root)`, `u:r:kernel:s0` |
+| **Result** | usermode helper as `uid=0(root)`, `u:r:kernel:s0`; persistent root shell via `g4d`/`g4sh`; clean exploit exit (no panic) |
 | **Key mitigations defeated** | Samsung KDP (EL2), DEFEX, SELinux, PANIC_ON_OOPS, large-slide arm64 KASLR |
 
 > **Note:** We did not discover this vulnerability.  All credit goes to
 > NebuSec, who published CVE-2026-43499 as part of their
 > [CyberMeowfia/IonStack](https://github.com/NebuSec/CyberMeowfia/tree/main/IonStack)
-> research.  This repository contains our port to the Samsung
-> Galaxy A17, including a new final stage, and the engineering record of
-> what a Samsung retail build changes. The exploit base is the public
-> [ghostlock-oneplus](https://github.com/JoinChang/ghostlock-oneplus) tree
-> (JoinChang).
+> research.  This repository contains our **independent port to the Samsung
+> Galaxy A17**, including a new final stage, and the engineering record of
+> what a Samsung retail build changes.  Development started from the public
+> OnePlus port [ghostlock-oneplus](https://github.com/JoinChang/ghostlock-oneplus); nearly everything 
+> after the write primitive was reworked or replaced for this target (see below).
 
 > **For authorized security research and educational purposes only.**
 > Developed and tested on a dedicated research device we own.
@@ -69,7 +69,8 @@ stage: forged workqueue execution instead of credential patching,
 validated end-to-end in QEMU against the real extracted kernel before
 spending device cycles.*
 
-## What changed vs the ghostlock-oneplus base
+
+## What changed vs the OnePlus port
 
 The entry primitives are upstream's (pselect stack reclaim, fake
 `rt_mutex_waiter`, constrained rb-erase pointer write).  Almost everything
@@ -89,13 +90,31 @@ after the write primitive is new or reworked for this target:
   `wq->pwqs` at runtime instead of trusting a fixed offset; the p0 profile
   table itself was validated 12/12 against the extracted firmware kernel
   (`docs/OFFSETS.md`).
-- **Fuse (struct-page flag dirt) handling.**  The channel's collateral is
-  fatal at process teardown under PANIC_ON_OOPS, so the chain repairs the
-  dirtied struct-page flags pre-trigger via an fdtable walk
-  (`channel_own_task()` — the perf-based `perf_find_task` never returns on
-  this busy 8-core target).
+- **Fuse (struct-page flag dirt) handling — and a clean exit.**  The
+  channel's collateral is fatal at process teardown under PANIC_ON_OOPS.
+  Current state: a fdtable walk (`listwalk_own_task()` — the backward
+  `init_task.tasks` walk; works on-device) arms an ashmem fd for the
+  configfs virtual write, the struct-page flag repair runs as *post-root
+  hardening* (device-proven ordering: queue → trigger → root first — see
+  the regression lesson below), and at exit a **fork-hold** child keeps
+  every fd referenced so no forged-pipe teardown ever runs: the exploit
+  process now exits with **zero kernel warnings** (guest-verified 5/5;
+  device-verified: the rooted cycle on 2026-08-18 stayed up).
+- **cfg-forge + the 32-slot forge-budget cap.**  The rd pipe_buffer array
+  is 32 slots; forging past it overflows into the neighbor slab object.
+  Post-arm, forging switches to a second armed fd whose configfs
+  descriptor stays parked on the array — every forged slot then costs a
+  plain `pwrite`, no array budget at all.  The a0-path budget is
+  hard-capped at 32 regardless of `GL_RWF_SLOTS` (the env used to allow
+  64/128 — that silently corrupted the neighbor object on overflow).
+- **Root-shell daemon (`src/daemon/`).**  `g4d` runs from the umh helper
+  (init creds), listens on the abstract socket `@ghostlockd`, gates
+  clients by `SO_PEERCRED` (uid 0/2000), and serves `/system/bin/sh` over
+  a pty per connection; `g4sh` is the client (interactive, or
+  `g4sh -c "id"`).  Both static, no dependencies.
 - **Reliability engineering.**  Bound-pool forge with busy guard,
-  verify-after-queue with requeue rounds, boot-quality warming probe
+  verify-after-queue with requeue rounds (round 1 unconditional — the
+  sequence the device actually roots with), boot-quality warming probe
   (`--write1`), one-round-per-process fuse hygiene, and a reboot-aware
   grind loop (`scripts/rr_loop4.sh`).
 - **Bug fixes to the original device binary's logic** (present in the tree
@@ -148,9 +167,10 @@ Samsung stacks several layers on top of GKI 6.12, and each one killed a
    ├─ cpu_pwq discovery: walk system_wq.pwqs (cpu0's pool_workqueue is
    │   the first link − offsetof(pwqs_node)), verify via pwq->wq
    │
-   ├─ flag repair: struct-page flags dirtied by the route rounds are
-   │   restored through a configfs virtual write (armed ashmem attr),
-   │   BEFORE anything can trip BUG: Bad page state on a locked device
+   ├─ post-root hardening (best-effort, never gates the trigger):
+   │   arm an ashmem attr via the fdtable walk, park the cfg-forge
+   │   descriptor, repair dirtied struct-page flags via the configfs
+   │   virtual write
    │
    ▼
  forged work_struct on system_wq's bound cpu0 pool:
@@ -164,6 +184,10 @@ Samsung stacks several layers on top of GKI 6.12, and each one killed a
    ▼
  /system/bin/sh /data/local/tmp/a/umh.sh   running as
  uid=0(root) gid=0(root) context=u:r:kernel:s0
+   ▼
+ umh.sh starts /data/local/tmp/a/g4d → persistent root shell on
+ @ghostlockd for any later `g4sh` client; the exploit then exits
+ CLEANLY (fork-hold child pins the forged pipes — no teardown BUG)
 ```
 
 Notable engineering details:
@@ -186,19 +210,39 @@ Requires the Android NDK (r30 used; any recent clang with an
 aarch64-linux-android target works):
 
 ```
-make            # produces ./ghostlock  (aarch64 PIE)
+make            # produces ./ghostlock  (aarch64 PIE, the on-device form)
+                # plus ./g4d and ./g4sh (statically linked root daemon
+                # and client — no linker deps under the helper context)
 ```
 
-The build is byte-reproducible against our on-device binary
-(md5 `a8698e7f3a841d06edb26fc882b617c9`).
+Current build hashes: `ghostlock` md5 `e3a74eab527c1af3a96e4cc7489cb435`,
+`g4d` md5 `e619df991da191034555fdec146280fd`,
+`g4sh` md5 `5fdb763f61abe735675537a64912021c`.
+
+Since the 2026-08-18-late build, the fuse-bringup perf path (perf slide +
+perf FILE leak) is **off by default** (`GL_FUSE_BRINGUP=1` re-enables it):
+it never produced a candidate in ~700 recorded attempts on this target,
+cost ~10–20 s of perf storms per cycle, and its `perf_event_open` allow is
+shell-only in the device sepolicy.  The device-proven slide/arm come from
+the boot_id ctl_table anchors and the fdtable task-list walk — nothing in
+the PC-grind path changes behaviorally.
 
 ## Run (device)
 
+Full device-verified sequence to a root shell:
+
 ```
 adb push ghostlock /data/local/tmp/a/g4
-adb shell 'chmod 755 /data/local/tmp/a/g4'
-adb shell 'GL_WQ_UMH=1 GL_RWF_SLOTS=64 RWF_DEBUG=1 /data/local/tmp/a/g4 --rwforge'
+adb push g4d /data/local/tmp/a/g4d
+adb push g4sh /data/local/tmp/a/g4sh
+adb shell 'chmod 755 /data/local/tmp/a/g4 /data/local/tmp/a/g4d /data/local/tmp/a/g4sh'
+./scripts/rr_loop4.sh                            # exits on ROOTED
+adb shell /data/local/tmp/a/g4sh                 # → interactive uid=0 shell: :/ #
+adb shell '/data/local/tmp/a/g4sh -c "id"'       # one-shot: uid=0(root) ...
 ```
+
+(Equivalent single cycle by hand: `adb shell 'GL_WQ_UMH=1 GL_RWF_SLOTS=64
+RWF_DEBUG=1 /data/local/tmp/a/g4 --rwforge'`.)
 
 The primitive is probabilistic (write-land rate varies hugely per boot —
 ~1/3 on a good boot to ~1/20 on a cold one), so a grind loop helps:
@@ -215,11 +259,61 @@ Success markers:
   `/data/local/tmp/cap/` + `/data/local/tmp/a/*.txt` (dmesg, last_kmsg,
   kallsyms, pstore, dropbox SYSTEM_LAST_KMSG/SYSTEM_BOOT entries).
 
-**Expected device behavior:** the kernel panics when the exploit process
-exits (the forged-pipe teardown trips `BUG: Bad page state` —
-panic_on_oops=1 on this build).  Everything the helper wrote is synced to
-disk before that; the device comes back ~60–90 s later.  This is a
-research-device trade-off, not a stability claim.
+### Root shell (g4d/g4sh)
+
+When the helper runs, umh.sh starts `g4d` with init creds right after
+dropping the root marker (v7 — early in the script, so a later capture
+failure can't cost the shell).  g4d daemonizes and listens on the
+abstract unix socket `@ghostlockd`; clients must be uid 0 or 2000
+(`SO_PEERCRED`).  From any later adb shell:
+
+```
+/data/local/tmp/a/g4sh            # interactive uid=0 shell (pty-bridged)
+/data/local/tmp/a/g4sh -c "id"    # one-shot: uid=0(root) ...
+```
+
+**DEFEX safeplace — Samsung's path-based exec block, and the bypass.**
+The first autostart attempt died with `G4D-RC=137`: dmesg showed
+`[DEFEX] Safeplace violation [task=sh, child=/data/local/tmp/a/g4d,
+uid=0]` — DEFEX SIGKILLs uid=0 execs from `/data/local/tmp` (uid=2000
+execs are unaffected, which is why a manually started daemon worked all
+along).  umh.sh v7 binds g4d over a dormant system daemon binary
+(`mount --bind g4d /system/bin/lmkd`, exec the shadow path, `umount -l`
+immediately) so the exec's path is DEFEX-safe; g4d sets its own comm via
+`prctl` so `ps` still shows `g4d`.  lmkd never re-execs at runtime, so
+the millisecond shadow window is risk-free.  (An audited heavier hammer
+stays documented but unused: DEFEX's features word is a u32 at image
+offset `0x018A287C`, from `defex_get_features` in the extracted vmlinux
+— zeroable via the kernel-write channel if the bind ever stops working.)
+
+Operational notes: the helper's stdout is not reliably captured — check
+`/data/local/tmp/a/g4d.rc` (launch exit code), `g4d.out` (stderr), and
+`g4d.mnt` (bind errors).  Kill any *shell-started* test g4d before a
+root cycle — only one instance can bind `@ghostlockd` (duplicates exit
+on EADDRINUSE), and you want the root-creds one to win.  Cosmetic quirk:
+`ps` does not list g4d even while it serves (shadow-exec comm
+visibility) — the real liveness check is `g4sh -c id`.
+
+**Expected device behavior:** since the 2026-08-18 build, the exploit
+process exits **without a kernel panic** (a fork-hold child pins the
+forged pipes so no teardown `BUG: Bad page state` ever fires;
+device-verified on three consecutive rooted cycles — 13:40, 16:36,
+18:02 — all stayed up; the device previously panic-reset on every rooted
+exit).  Root is per-boot by design; residue is one sleeping `g4hold`
+process plus pinned pages per run, cleared on reboot.  The full daemon
+chain is **device-verified** (18:02): umh.sh v7's DEFEX bind-mount
+bypass started g4d (`G4D-RC=0`) and `g4sh -c id` from adb shell returned
+`uid=0(root) gid=0(root) groups=0(root) context=u:r:kernel:s0`,
+including an interactive `:/ #` pty session.
+
+**Verification labels, honestly:** the 18:02 end-to-end device
+verification ran on the v7 build (md5 `62048473…`).  The current build
+(md5 `e3a74eab…` — fuse-bringup off by default, deployment-home
+parameterization with `/data/local/tmp/a` still the default) is
+guest-verified (QEMU boots 95–97: root, clean exit, g4sh round-trip) and
+awaits device re-verification; the PC-grind behavior is unchanged
+(fuse-bringup had 0 successes in ~700 device attempts, and every runtime
+path still defaults to `/data/local/tmp/a`).
 
 ## QEMU end-to-end validation
 
@@ -233,12 +327,14 @@ missing signed rules file).  An initramfs init runs the exploit in-guest.
 **Setup:** extract the kernel `Image` from your own device firmware (not
 included — it is Samsung's copyrighted binary), then run
 `patch_image.py` to produce `Image.nokdp`, `mkinitramfs.sh` to build the
-initramfs, and `run.sh` to boot.  `boot47.log` / `boot61.log` are real
-captured runs showing the complete in-guest chain.
+initramfs, and `run.sh` to boot.  `boot47.log` / `boot61.log` /
+`boot93.log` are real captured runs showing the complete in-guest chain.
 
 In-guest the *entire* chain completes against the real kernel: channel up
 → slide oracle → queue → trigger → helper runs → `uid=0(root)` markers
-(boots 47/48/50/51/52/57/58/59/60/61).  QEMU differences that mattered:
+(boots 47/48/50/51/52/57/58/59/60/61), and with the current build also a
+**clean, warning-free exploit exit** plus the `g4d` autostart → `g4sh`
+client round-trip (`boot93.log`).  QEMU differences that mattered:
 the kernel image loads at phys 0x40200000 there (not 0x40000000 — the
 `KPHYS` env knob exists for exactly this), and `nokaslr` + guest-only
 knobs (`GL_NOKASLR`, `GL_RWF_SLOTS`) are used because the slide is known
@@ -264,7 +360,9 @@ on-device grinding (see the QEMU section above).
 
 The chain rooted the device four times in one day (18:23, 18:59, 20:04,
 20:24) with the same binary — see below for what that does and does not
-mean.
+mean.  On 2026-08-18 the current build rooted again on grind cycle 2
+(13:40) and the device **stayed up** — the first panic-free rooted exit —
+and a root-shell daemon session was demonstrated on-device.
 
 ## Success rate — set expectations honestly
 
@@ -279,11 +377,11 @@ several hours**, with the loop riding through panic-reboots on its own.
 Fine for research and forensics; not a "root 30 seconds after boot"
 experience.
 
-Known levers to raise the rate (understood, not yet implemented):
-restructure the wq-umh discovery reads onto the cheap boot_id-oracle path
-(fewer channel rounds → fewer panic chances), and fix the fdtable own-task
-lookup so the pre-trigger struct-page flag repair actually engages (this
-would also remove the panic-on-exit).
+Known levers to raise the rate (assessed): restructuring the wq-umh
+discovery reads onto the boot_id-oracle path was evaluated and rejected —
+post-cfg-forge, channel reads are effectively free, while each oracle
+read costs two route rounds (the panic-attrition source).  The fdtable
+own-task lookup is fixed (backward task-list walk, works on-device).
 
 ## Persistence
 
@@ -298,9 +396,12 @@ research device.
 ## Repository layout
 
 ```
-Makefile            NDK build (make → ./ghostlock)
+Makefile            NDK build (make → ./ghostlock + ./g4d + ./g4sh)
 src/                full exploit source (core + device offset tables)
+src/daemon/         g4d root daemon + g4sh client (static, standalone)
 docs/OFFSETS.md     the validated BZA5 offset table + how it was verified
+docs/PORTING.md     handover for porting to the Galaxy S26 (m1q) — what
+                    transfers, what to re-derive, pitfalls
 examples/           proof-of-root artifacts from a real device run
 scripts/rr_loop4.sh the on-device grind loop (warm boot → wq-umh → capture)
 qemu-e2e/           QEMU harness: boot the real kernel in-guest, run the

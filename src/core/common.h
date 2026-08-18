@@ -542,6 +542,9 @@ void rwf_pin_pipe_create(void);
 int rwf_repair_flags(int fd);
 int rwf_repair_flags_configfs(int fd);
 int rwf_repair_flags_wq_umh(int armed_fd, uintptr_t fake_page);
+/* cfg-forge (main.c): post-arm forging via a parked configfs descriptor */
+int cfg_forge_enabled(void);
+int cfg_forge_pb(const void *pb, size_t slot);
 
 /* util.c — fake-fops overrides & misc A17 state */
 extern uintptr_t fops_filp_root_mode;

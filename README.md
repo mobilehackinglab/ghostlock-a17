@@ -1,8 +1,8 @@
-# ghostlock — CVE-2026-43499 on Samsung Galaxy A17
+# GhostLock — CVE-2026-43499 on Samsung Galaxy A17
 
-Full user-to-root exploit chain for **CVE-2026-43499 ("ghostlock")** on the Samsung Galaxy A17 **SM-A175F**, running Android 16 / GKI 6.12.
+Full user-to-root exploit chain for **CVE-2026-43499 ("GhostLock")** on the Samsung Galaxy A17 **SM-A175F**, running Android 16 / GKI 6.12.
 
-The chain starts from the public ghostlock primitives and ends with a usermode helper executing as:
+The chain starts from the public GhostLock primitives and ends with a usermode helper executing as:
 
 ```text
 uid=0(root) gid=0(root) groups=0(root)
@@ -16,7 +16,7 @@ https://www.mobilehackinglab.com/blog/cve-2026-43499-ghostlock-a17-root-shell
 
 > **Research note**
 >
-> We did not discover CVE-2026-43499. Credit for the original vulnerability and IonStack research goes to **NebuSec**.
+> We did not discover CVE-2026-43499. Credit for the original vulnerability and IonStack research goes to Nebula Security.
 >
 > This repository documents our independent port to the Samsung Galaxy A17, the changes required for Samsung's kernel protections, and a new final exploitation stage.
 >
@@ -329,7 +329,7 @@ qemu-e2e/             end-to-end QEMU validation
 
 ## Related research
 
-### Original ghostlock / IonStack research
+### Original GhostLock / IonStack research
 
 NebuSec:
 
@@ -375,5 +375,3 @@ context=u:r:kernel:s0
 This proof of concept is provided for **educational and authorized security research purposes only**.
 
 Only use it on devices and environments you own or have explicit permission to test.
-
-The vulnerability itself was discovered and originally researched by NebuSec. This repository documents an independent Samsung Galaxy A17 port and associated exploitation engineering.

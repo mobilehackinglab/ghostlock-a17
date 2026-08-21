@@ -1,4 +1,5 @@
 /* rwforge_a17.c — "marching forger" phys R/W for the A17 port.
+ * Adapted from s26-handoff/src-target/rwforge.c to the ghostlock-a17 tree.
  *
  * The constrained rb write (one aligned qword per route round, via
  * rw_trigger() in main.c — our device-proven pselect/PI route) retargets

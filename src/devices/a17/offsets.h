@@ -1,6 +1,7 @@
-/* Samsung A17 (BZA5 6.12.23 / CZF1 6.12.38) + GKI reference builds.
+/* Samsung A17 (BZA5 6.12.23 / CZF1+CZG1 6.12.38) + GKI reference builds.
  * Table content recovered 1:1 from the shipped binary's known_offsets[]
- * (see a17-research notes); only the two A17 entries are device-proven. */
+ * (see a17-research notes); the A17 entries are device-proven (CZG1 added
+ * 2026-08-21: kallsyms+BTF-verified 1:1 against CZF1, root pending). */
 
 /* Samsung Galaxy A17 — A175FXXS3BZA5, kernel 6.12.23 */
 OFFSETS_ENTRY("6.12.23-android16-5-abA175FXXS3BZA5-4k",
@@ -25,6 +26,30 @@ OFFSETS_ENTRY("6.12.23-android16-5-abA175FXXS3BZA5-4k",
 
 /* Samsung Galaxy A17 — A175FXXS5CZF1, kernel 6.12.38 */
 OFFSETS_ENTRY("6.12.38-android16-5-abA175FXXS5CZF1-4k",
+  .kernel_phys_load=0x40000000, STRUCT_OFFSETS_6_12,
+  .off_init_task=0x0252CF40, .off_init_cred=0x02542D10,
+  .off_init_uts_ns=0x026B6680, .off_empty_zero_page=0x02758000,
+  .off_root_task_group=0x02760D80, .off_selinux_enforcing=0x027B0540,
+  .off_kptr_restrict=0x0252B678, .off_selinux_blob_sizes=0x018B80E8,
+  .off_security_hook_heads=0x0, .off_kmalloc_caches=0x018AE4C0,
+  .off_anon_pipe_buf_ops=0x0127F088, .off_ashmem_misc_fops=0x0,
+  .off_ashmem_fops=0x029203A0, .off_ashmem_ioctl=0x00DE4C38,
+  .off_ashmem_compat_ioctl=0x00DE4B08, .off_ashmem_mmap=0x00DE4B84,
+  .off_ashmem_open=0x00DE4BA8, .off_ashmem_release=0x00DE4CD8,
+  .off_ashmem_show_fdinfo=0x00DE4AE0,
+  .off_configfs_read_iter=0x00518E9C, .off_configfs_bin_write_iter=0x005190D0,
+  .off_copy_splice_read=0x004945B8, .off_noop_llseek=0x00441664,
+  .off_cap_capable_active=0x0,
+  .off_slide_nfulnl_logger=0x025221A8, .off_slide_loggers_0_1=0x025220F8,
+  .off_slide_boot_id=0x028934F0,
+  .off_system_unbound_wq=0x0, .off_call_usermodehelper_exec_work=0x0,
+),
+
+/* Samsung Galaxy A17 — A175FXXS6CZG1, kernel 6.12.38 (SPL 2026-07-05).
+ * All values byte-identical to CZF1: verified symbol-for-symbol against the
+ * CZG1 boot.img kernel's kallsyms (132,888 syms) + embedded BTF struct audit
+ * (extract-czg1/ in the research tree). Builds differ only in the banner. */
+OFFSETS_ENTRY("6.12.38-android16-5-abA175FXXS6CZG1-4k",
   .kernel_phys_load=0x40000000, STRUCT_OFFSETS_6_12,
   .off_init_task=0x0252CF40, .off_init_cred=0x02542D10,
   .off_init_uts_ns=0x026B6680, .off_empty_zero_page=0x02758000,

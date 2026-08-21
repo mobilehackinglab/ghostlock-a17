@@ -1,4 +1,4 @@
-# Kernel offset table — Samsung Galaxy A17 (BZA5 firmware)
+# Kernel offset table — Samsung Galaxy A17 (BZA5 firmware; CZG1 note at end)
 
 The exploit needs no KASLR leak to *find* most of its targets: the kernel
 image loads at a fixed physical address on this device (phys 0x40000000,
@@ -73,3 +73,17 @@ layouts).
    (`qemu-e2e/btf_audit.py` in the research tree).
 3. Runtime: the QEMU E2E harness boots the real kernel and the full chain
    runs against these values (see README's E2E section).
+
+## Second target: CZG1 (A175FXXS6CZG1, kernel 6.12.38, SPL 2026-07-05)
+
+Same offsets as the device-proven CZF1 set — verified symbol-for-symbol
+(132,888 kallsyms) plus a BTF struct audit against the CZG1 boot.img kernel
+(research tree `extract-czg1/`); the two builds differ only in the banner.
+Exceptions the CZF1 header had stale/missing: `system_wq`/`system_unbound_wq`
+= 0x018AE238/0x018AE250, `call_usermodehelper_exec_work` = 0x000F8FDC,
+boot_id ctl_table entry = 0x0264BB58 (data-ptr slot 0x0264BB60), and the
+slide anchors are per-target: `BOOTID_STR_IMG_OFF` ("boot_id" string,
+0x017E5814 on CZG1 vs 0x017CEDD0 on BZA5) and `PROC_DO_UUID_OFF`
+(0x009D6558 on CZG1). Compile-time target: `src/core/target_czg1.h`
+(`make czg1`); runtime table entry keyed on uname in
+`src/devices/a17/offsets.h`. Device-rooted 2026-08-21 (wq-umh path).

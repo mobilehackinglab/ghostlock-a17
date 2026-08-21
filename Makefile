@@ -17,16 +17,30 @@ SRCS := \
   src/core/miniadb.c \
   src/core/umh_root.c
 
+TARGET ?= target.h
 CFLAGS := -O2 -Wall -Wno-unused-parameter -Wno-sign-compare -Wno-unused-function \
-  -Isrc/core -Isrc/devices -DTARGET_CONFIG_H=\"target.h\"
+  -Isrc/core -Isrc/devices -DTARGET_CONFIG_H=\"$(TARGET)\"
 LDFLAGS := -fPIE -pie -pthread
 
-.PHONY: all clean
+.PHONY: all clean czg1
 
-all: ghostlock
+all: ghostlock g4d g4sh
 
-ghostlock: $(SRCS)
-	$(NDK_CC) $(CFLAGS) $(LDFLAGS) $^ -o $@
+ghostlock: $(SRCS) src/core/$(TARGET)
+	$(NDK_CC) $(CFLAGS) $(LDFLAGS) $(SRCS) -o $@
+
+# CZG1 build: same tree, target_czg1.h offsets (identical to CZF1)
+czg1:
+	rm -f ghostlock
+	$(MAKE) TARGET=target_czg1.h
+	mv ghostlock ghostlock-czg1
+
+# root daemon + client (static, standalone — no exploit internals)
+g4d: src/daemon/g4d.c
+	$(NDK_CC) -O2 -Wall -static src/daemon/g4d.c -o $@
+
+g4sh: src/daemon/g4sh.c
+	$(NDK_CC) -O2 -Wall -static src/daemon/g4sh.c -o $@
 
 clean:
-	rm -f ghostlock
+	rm -f ghostlock g4d g4sh

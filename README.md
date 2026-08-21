@@ -37,6 +37,7 @@ https://www.mobilehackinglab.com/blog/cve-2026-43499-ghostlock-a17-root-shell
 | **Persistence** | Per-boot |
 | **Exploit exit** | Clean, no kernel panic |
 | **Mitigations encountered** | Samsung KDP, DEFEX, SELinux, PANIC_ON_OOPS, arm64 KASLR |
+| **Supported firmware** | `A175FXXS3BZA5` (kernel 6.12.23) and `A175FXXS6CZG1` (kernel 6.12.38, SPL 2026-07-05) — both device-verified, same chain |
 
 ---
 
@@ -226,13 +227,15 @@ arbitrary RW → recover runtime state → forge kernel work → execute usermod
 Requires a recent Android NDK.
 
 ```bash
-make
+make        # BZA5 firmware (kernel 6.12.23)
+make czg1   # CZG1 firmware (kernel 6.12.38): per-target slide anchors,
+            # offsets are uname-keyed at runtime
 ```
 
 Produces:
 
 ```text
-ghostlock   # exploit
+ghostlock   # exploit (ghostlock-czg1 for the CZG1 build)
 g4d         # static root-shell daemon
 g4sh        # root-shell client
 ```
